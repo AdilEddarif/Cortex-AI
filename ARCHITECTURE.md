@@ -53,7 +53,7 @@ Urgent stimuli trigger an immediate "phasic" tick.
 | `attention` | Salience network, pulvinar | algorithm | competition over salience, novelty, urgency, goal relevance, emotional relevance, uncertainty and prediction error; weights modulated by curiosity/fear; an arousal-, energy- and mode-dependent ignition threshold |
 | `workspace` | Global neuronal workspace | deterministic | capacity-limited (4) broadcast contents with decay and displacement; a local relay replaces it in ablations |
 | `working_memory` | Prefrontal / phonological loop | deterministic | 7 slots, exponential decay, rehearsal, eviction by activation × importance; dialog buffer; unresolved questions |
-| `memory` | Hippocampus + cortex | embeddings + database | episodic, semantic, procedural, autobiographical, dream and imagined memories; importance-gated encoding; cue-driven and explicit recall (relevance × recency × importance × strength); retrieval strengthens traces |
+| `memory` | Hippocampus + cortex | embeddings + database | episodic, semantic, procedural, autobiographical, dream and imagined memories; importance-gated encoding; cue-driven and explicit recall (relevance × retention × importance × strength); temporal memory (see §7) |
 | `emotion` | Limbic valuation | deterministic | pleasure, discomfort, curiosity, fear, urgency, social, novelty, frustration, satisfaction, boredom; appraisal + homeostatic decay; causally modulates attention, encoding, arousal and action |
 | `goals` | vmPFC / motivational systems | deterministic | persistent intrinsic goals + situational goals (respond, explore surprises); dynamic priorities (rest ∝ fatigue) |
 | `thought` | Inner speech / dlPFC | symbolic | bounded thought chains, loop detection, interruption, rate limits, mind-wandering when idle (which may bring back something it has read); think-before-speaking deliberation |
@@ -65,7 +65,7 @@ Urgent stimuli trigger an immediate "phasic" tick.
 | `safety` | Inhibitory control | policy | allow-list, capability check, permissions for external actions, rate limits, no external action during sleep |
 | `prediction` | Predictive coding | algorithm | visual scene persistence, conversational expectations (including *missing* replies), speaker tone, action outcomes, own arousal; errors drive attention, curiosity, memory and exploration |
 | `imagination` | Default mode / hippocampal simulation | rules | outcome/value/risk of actions without acting; dream recombination; deliberate imagining |
-| `sleep` | NREM/REM processes | orchestrator | replay → cluster → abstract → strengthen → prune; self-narrative rewrite; dream-like simulations while external input is gated |
+| `sleep` | NREM/REM processes | orchestrator | replay → cluster → abstract → strengthen → fade old episodes to gist → prune; self-narrative rewrite; dream-like simulations while external input is gated |
 | `self_model` | Self-referential cortex | deterministic | identity, body (an animated face: eyes, eyebrows, mouth; no limbs), sensors, capabilities, static + learned limitations, current state, activity timeline, temporal continuity, predicted future, attributed perception ("I perceived via my camera ...") |
 | `world_model` | Posterior cortex / cognitive map | deterministic | entities with beliefs (value, confidence, source, time, decay); object permanence with growing uncertainty; conflict detection |
 | `metacognition` | Anterior PFC | deterministic | confidence, knowledge gaps, memory/perception conflicts, source monitoring, model reliability, current focus, all from real metadata |
@@ -116,21 +116,45 @@ After a restart the cortex knows its boot count, how long it was offline (the bo
 and remembered), its memories, its goals and its learned limits. Situational goals are marked
 abandoned on restart. Nothing is stored as one giant prompt.
 
-## 7. Time
+## 7. Temporal memory
+
+Memories live in time the way human memories do. Each part can be switched off for ablations.
+
+* **Forgetting curve.** Retention falls off exponentially with the time since a memory was last
+  used: `R = exp(-t / S)`. The stability `S` grows with importance and emotional intensity, and
+  is much larger for knowledge (semantic, procedural, autobiographical) than for episodes. An
+  unimportant episode is effectively gone within days; a vivid one lasts much longer.
+* **Spacing effect.** Every recall resets the curve and raises the stability, more when the
+  memory was already half-forgotten than when it was fresh, so memories that keep coming back
+  become durable.
+* **Accessibility.** A faded memory is not deleted at once: it simply stops coming back on a
+  weak cue, and only a strong, specific cue can still reach it.
+* **Gist over detail.** During sleep, faded episodes lose their exact words and keep only their
+  gist ("you talked to me about the telescope"). Very important memories keep their details
+  (flashbulb memories). Weak, faded, never-recalled episodes are eventually pruned.
+* **Episodes.** Experience is segmented into episodes at pauses, at sleep and at big surprises.
+  Each episode keeps who was there, what it was about (the nouns of what was said, not the
+  questions asked about it) and what was done, and is summarised in the cortex's own words.
+* **Recall by time.** Questions such as "what did we talk about yesterday evening?", "two hours
+  ago", "before you fell asleep" or "when we first met" are answered from the episodes, with
+  human time labels ("this morning", "yesterday evening", "on Monday"). When nothing is found,
+  it says so rather than guessing.
+
+## 8. Time
 
 A real clock (optionally scaled) or a virtual clock (advances per tick; used for experiments).
 The temporal state tracks boot time, elapsed time, downtime, episodes (a new episode after sleep
 or a long silence) and sleep cycles. The self-model keeps an activity timeline ("five minutes
 ago I was talking with Ada").
 
-## 8. Safety
+## 9. Safety
 
 `cognition → ACTION_SELECTED → safety → ACTION_APPROVED/REJECTED → effectors`. Actions that reach
 outside the cortex need explicit permission grants. Credentials are never placed in prompts, and
 prompts, logs and memories pass through secret redaction (optional PII redaction). The camera
 and microphone are off by default, and raw frames are not stored.
 
-## 9. Observability
+## 10. Observability
 
 A live dashboard shows arousal and body state, attention (components, weights, threshold), the
 workspace, the current thought and inner monologue, goals, the valuation state with history,
@@ -147,7 +171,7 @@ recognised speech to the auditory channel; its mouth renders speech; its express
 brainstem, the valuation state and requested expressions. Nothing the face displays writes back
 into the cortex's state.
 
-## 10. Experiments
+## 11. Experiments
 
 Each condition runs on a fresh cortex with the same protocol: introductions → perception →
 probes → a simultaneous audio-visual event → distraction → a delay → probes → restart after

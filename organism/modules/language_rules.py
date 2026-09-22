@@ -46,7 +46,7 @@ COMMANDS: list[tuple[str, re.Pattern]] = [
     ("note", re.compile(r"\b(write down|note down|jot down|take a note|make a note)\s*:?\s*(?P<x>.*)")),
     ("move", re.compile(r"\b(move|walk|go|come|turn)\s+(to|forward|backward|back|left|right|over|here|closer|around)\b")),
     ("count", re.compile(r"\bcount (?P<x>(up )?to \d+|down from \d+|backwards? from \d+)")),
-    ("look", re.compile(r"\b(look around|look at|take a look|have a look|look\b(?! like))")),
+    ("look", re.compile(r"(\b(take|have) a look\b|^(please\s+)?((can|could|would|will) you\s+)?(please\s+)?look( around| at)?\b(?! like))")),
     ("set_goal", re.compile(r"\b(your (new )?goal is( to)?|i want you to)\s+(?P<x>.+)")),
 ]
 
@@ -67,7 +67,9 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
     ("feeling", re.compile(r"(how (are|do) you feel|how are you|are you (ok|okay|happy|sad|afraid|scared|curious|bored|frustrated)|your (mood|feelings?|emotions?)|what do you feel|how('?s| is) it going)")),
     ("confidence", re.compile(r"(how (sure|certain|confident)|are you sure)")),
     ("dream", re.compile(r"(did you dream|what did you dream|your dreams?|any dreams)")),
-    ("past", re.compile(r"(what (were|did) we (talk|discuss|say)|earlier|last time|what did i (say|tell)|what happened|what were you doing|remember when|previously|before i)")),
+    ("past", re.compile(r"(what (were|did) we (talk|discuss|say|do)|earlier|last time|what did i (say|tell)|what happened|what were you doing|"
+                        r"what did you do|remember when|previously|before i|yesterday|last night|this (morning|afternoon|evening)|"
+                        r"\bago\b|before (you|u) (fell asleep|slept|went to sleep)|(after|when) (you|u) woke|first (time )?we (met|talked))")),
     ("focus", re.compile(r"(focusing on|paying attention to|your focus|attending to)")),
     ("goal", re.compile(r"(what (are|is) your goals?|what do you want|what are you trying)")),
     ("capability", re.compile(r"(what can you do|can you (move|walk|see|hear|speak|remember|dance|sleep|dream)|your (abilities|capabilities|limitations)|what can't you)")),
@@ -518,6 +520,33 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
             return out(f"I did, sort of! {_second_person(dreams[0]['content'])} It wasn't real, of course. It's just my "
                        "memories getting remixed while I sleep.", ["memory"])
         return out("Not that I remember.")
+    if topic == "past" and (ctx.get("timeline") or {}).get("window"):  # recall by time: episodes
+        tl = ctx["timeline"]
+        label = tl["window"].get("label", "then")
+        eps = tl.get("episodes") or []
+        if not eps:
+            if not tl.get("available", True):
+                return out(f"I can't place things in time like that.", knowledge_gap=True)
+            return out(pick([f"I don't remember anything from {label}.",
+                             f"Hmm, nothing comes back from {label}. Maybe I wasn't switched on, or I've forgotten."], key),
+                       knowledge_gap=True)
+        told, last_when = [], None
+        for e in eps[-2:]:
+            s = _second_person(e["summary"].rstrip("."))
+            s = re.sub(r"^I talked with you\b", "we talked", s)
+            when = e["when"] if not tl["window"].get("anchor") else ""
+            if when and when == last_when:
+                when = "later"  # same part of the day: tell it as a sequence
+            else:
+                last_when = when
+            told.append(f"{when}, {s}" if when else s)
+        text = ". ".join(t[0].upper() + t[1:] for t in told)
+        text = text[0].upper() + text[1:] + "."
+        if tl["window"].get("anchor") == "before_sleep":
+            text = "Before I fell asleep, " + text[0].lower() + text[1:]
+        elif tl["window"].get("anchor") == "first":
+            text = "The first time, " + text[0].lower() + text[1:]
+        return out(text, ["memory"])
     if topic == "past":
         eps = [m for m in ctx.get("recent_episodes", []) if a.text not in m.get("content", "")
                and not m.get("content", "").startswith(("I adopted the goal", "I thought:", "I was surprised"))]

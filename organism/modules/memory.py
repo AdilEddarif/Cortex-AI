@@ -14,6 +14,11 @@ novelty, prediction error, goal relevance, social relevance and the current emot
 intensity (emotion literally changes what gets remembered). Retrieval is cue-driven
 (automatic pattern completion on each broadcast) or explicit (``memory.recall``) and scores
 memories by relevance, recency and importance x strength.
+
+Temporal memory (``temporal_memory.py``): memories follow a forgetting curve whose stability
+grows with importance, emotion and spaced recall; faded memories need a strong cue; during sleep
+faded episodes are reduced to their gist; and experience is segmented into episodes (at pauses,
+sleep and big surprises) that can be recalled by time ("yesterday evening").
 """
 from __future__ import annotations
 
@@ -25,11 +30,14 @@ import numpy as np
 
 from ..core.events import (
     ActionPayload, ActionType, ConsolidationPayload, DreamPayload, EmotionPayload, Event, EventType,
-    MemoryRef, MemoryRetrievedPayload, MemoryStoredPayload, Modality, SimulationPayload, SpeechPayload,
-    SystemPayload, UtterancePayload, WorkspaceItem, WorkspacePayload,
+    MemoryRef, MemoryRetrievedPayload, MemoryStoredPayload, Modality, Mode, ModePayload, SimulationPayload,
+    SpeechPayload, SystemPayload, UtterancePayload, WorkspaceItem, WorkspacePayload,
 )
 from ..core.module import CognitiveModule
 from ..core.util import clamp, fmt_clock, half_life_decay, humanize_duration, new_id, truncate
+from .temporal_memory import (
+    Timeline, gist, initial_stability, retention, stability_after_recall, time_label, time_reference,
+)
 
 REAL_KINDS = ("episodic", "semantic", "procedural", "autobiographical")
 ALL_KINDS = REAL_KINDS + ("dream", "imagined")
@@ -79,11 +87,15 @@ class MemoryRecord:
 class MemorySystem:
     """Storage + vector index. No bus dependency, so it can be unit-tested directly."""
 
-    def __init__(self, store, embedder, recency_half_life_s: float = 86400.0, persist: bool = True):
+    def __init__(self, store, embedder, recency_half_life_s: float = 86400.0, persist: bool = True,
+                 forgetting: bool = False, stability_base_s: float = 21600.0, access_floor: float = 0.05):
         self.store = store
         self.embedder = embedder
         self.recency_half_life_s = recency_half_life_s
         self.persist = persist
+        self.forgetting = forgetting
+        self.stability_base_s = stability_base_s
+        self.access_floor = access_floor
         self.records: dict[str, MemoryRecord] = {}
         self._matrix: np.ndarray | None = None
         self._ids: list[str] = []
@@ -126,6 +138,19 @@ class MemorySystem:
             self.store.put_memory(rec.row())
         return rec
 
+    # forgetting curve ----------------------------------------------------------
+    def stability(self, rec: MemoryRecord) -> float:
+        s = rec.context.get("stability_s")
+        return float(s) if s else initial_stability(rec.kind, rec.importance, 0.0, self.stability_base_s)
+
+    def retention(self, rec: MemoryRecord, now: float) -> float:
+        if not self.forgetting:
+            return 1.0
+        return retention(now - max(rec.ts, rec.last_access or 0.0), self.stability(rec))
+
+    def effective_strength(self, rec: MemoryRecord, now: float) -> float:
+        return rec.strength * self.retention(rec, now)
+
     def save(self, rec: MemoryRecord, **fields: Any) -> None:
         for k, v in fields.items():
             setattr(rec, k, v)
@@ -153,15 +178,26 @@ class MemorySystem:
             if rec.kind not in kinds or (exclude_ids and rec.id in exclude_ids):
                 continue
             rel_n = (rel - floor) / max(1e-6, 1.0 - floor)
-            recency = half_life_decay(now - max(rec.ts, rec.last_access or 0.0), self.recency_half_life_s)
-            score = 0.6 * rel_n + 0.15 * recency + 0.25 * rec.importance * min(1.0, rec.strength / 1.5)
+            if self.forgetting:
+                recency = self.retention(rec, now)
+                eff = rec.strength * recency
+                if eff < self.access_floor and rel_n < 0.8:
+                    continue  # faded: it would take a much stronger cue to bring this back
+            else:
+                recency = half_life_decay(now - max(rec.ts, rec.last_access or 0.0), self.recency_half_life_s)
+                eff = rec.strength
+            score = 0.6 * rel_n + 0.15 * recency + 0.25 * rec.importance * min(1.0, eff / 1.5)
             out.append((rec, clamp(score), rel))
         out.sort(key=lambda x: -x[1])
         out = out[:k]
         if touch:
-            for rec, _s, _r in out:  # retrieval practice strengthens memories
-                self.save(rec, access_count=rec.access_count + 1, last_access=now,
-                          strength=min(3.0, rec.strength + 0.05))
+            for rec, _s, _r in out:  # retrieval practice strengthens memories (more when spaced)
+                fields: dict[str, Any] = {"access_count": rec.access_count + 1, "last_access": now,
+                                          "strength": min(3.0, rec.strength + 0.05)}
+                if self.forgetting:
+                    fields["context"] = {**rec.context, "stability_s": round(stability_after_recall(
+                        self.stability(rec), self.retention(rec, now)), 1)}
+                self.save(rec, **fields)
         return out
 
     def recent(self, kinds: Iterable[str] | None = None, n: int = 10) -> list[MemoryRecord]:
@@ -195,13 +231,18 @@ class Memory(CognitiveModule):
         EventType.WORKSPACE_UPDATED, EventType.SPEECH_GENERATED, EventType.ACTION_EXECUTED,
         EventType.ACTION_REJECTED, EventType.EMOTION_CHANGED, EventType.SYSTEM_BOOT,
         EventType.DREAM_CONTENT, EventType.SIMULATION_RESULT, EventType.MEMORY_CONSOLIDATED,
-        EventType.SELF_STATE_CHANGED, EventType.ACTION_APPROVED,
+        EventType.SELF_STATE_CHANGED, EventType.ACTION_APPROVED, EventType.MODE_CHANGED,
     )
 
     def __init__(self, ctx):
         super().__init__(ctx)
         self.cfg = self.settings.memory
-        self.system = MemorySystem(ctx.store, ctx.embedder, self.cfg.recency_half_life_s)
+        self.system = MemorySystem(ctx.store, ctx.embedder, self.cfg.recency_half_life_s,
+                                   forgetting=self.cfg.forgetting, stability_base_s=self.cfg.stability_base_s,
+                                   access_floor=self.cfg.access_floor)
+        self.timeline = Timeline()
+        self.asleep = False
+        self.stats = {"gisted": 0, "episodes_closed": 0}
         self.emotion: dict[str, float] = {}
         self.emotion_intensity = 0.0
         self._refractory: dict[str, float] = {}
@@ -211,20 +252,42 @@ class Memory(CognitiveModule):
     async def start(self) -> None:
         n = await self.system.load()
         self.log.info("loaded %d long-term memories", n)
+        if self.cfg.episodes:
+            self.timeline = Timeline(self.kv_load("timeline", []) or [])
         for topic, fn in {
             "memory.recall": self._recall, "memory.recent": self._recent, "memory.store": self._store,
             "memory.replay_batch": self._replay_batch, "memory.mark_consolidated": self._mark_consolidated,
             "memory.strengthen": self._strengthen, "memory.prune": self._prune, "memory.sample": self._sample,
             "memory.procedural": self._procedural, "memory.facts": self._facts, "memory.stats": self._stats,
+            "memory.fade": self._fade, "memory.episodes": self._episodes,
             "executor.remember": self._executor_flag,
         }.items():
             self.respond(topic, fn)
+
+    async def stop(self) -> None:
+        self._save_timeline()
+
+    def _save_timeline(self) -> None:
+        if self.cfg.episodes:
+            self.kv_save("timeline", self.timeline.to_list())
+
+    def _boundary(self, reason: str) -> None:
+        """Event segmentation: the current episode ends here."""
+        if self.cfg.episodes and self.timeline.close(reason):
+            self.stats["episodes_closed"] += 1
+            self._save_timeline()
 
     # ------------------------------------------------------------------ event handling
     async def handle(self, event: Event) -> None:
         t = event.type
         now = self.now()
-        if t == EventType.EMOTION_CHANGED:
+        if t == EventType.MODE_CHANGED:
+            p = event.data(ModePayload)
+            sleeping = p.current in (Mode.ASLEEP, Mode.DREAMING)
+            if sleeping and not self.asleep:
+                self._boundary("sleep")
+            self.asleep = sleeping
+        elif t == EventType.EMOTION_CHANGED:
             p = event.data(EmotionPayload)
             self.emotion, self.emotion_intensity = p.state, p.intensity
         elif t == EventType.WORKSPACE_UPDATED:
@@ -276,6 +339,13 @@ class Memory(CognitiveModule):
     async def _on_broadcast(self, p: WorkspacePayload) -> None:
         new = [i for i in p.items if i.event_id in set(p.new_item_ids)]
         for item in new:
+            if item.event_type == EventType.PREDICTION_ERROR and self.cfg.episodes:
+                pl = item.event.get("payload", {})
+                cur = self.timeline.current
+                if (float(pl.get("error", 0)) >= self.cfg.boundary_surprise and cur and cur.n >= 3
+                        and pl.get("target") in ("visual_scene", "conversation")):
+                    self._boundary("surprise")  # a big surprise starts a new chapter
+                    self.ctx.temporal.new_episode(self.now())
             if item.event_type == EventType.MEMORY_RETRIEVED:
                 ids = [m["id"] for m in item.event.get("payload", {}).get("memories", [])]
                 await self._strengthen({"ids": ids, "amount": 0.1})
@@ -401,9 +471,15 @@ class Memory(CognitiveModule):
         ctx = {"time": fmt_clock(now), "place": self.settings.world.location_name,
                "participants": participants or [], "mode": None, **(context or {})}
         strength = 0.5 + 0.5 * self.emotion_intensity + 0.5 * importance  # emotional/important => stronger
+        ctx["stability_s"] = round(initial_stability(kind, importance, self.emotion_intensity,
+                                                     self.cfg.stability_base_s), 1)
         rec = await self.system.add(kind, content, now, importance=importance, confidence=confidence, source=source,
                                     context=ctx, emotion=dict(self.emotion),
                                     episode_id=self.ctx.temporal.episode_id or None, strength=strength)
+        if self.cfg.episodes and not self.asleep and kind in REAL_KINDS and kind != "procedural":
+            ep = self.timeline.observe(self.ctx.temporal.episode_id, kind, content, importance, now, participants or [])
+            if ep.n % 10 == 1:
+                self._save_timeline()
         self.recent_encodings = ([{"kind": kind, "content": content, "importance": round(importance, 3),
                                    "t": now}] + self.recent_encodings)[:30]
         self.emit(EventType.MEMORY_STORED, MemoryStoredPayload(memory=rec.ref()),
@@ -496,10 +572,51 @@ class Memory(CognitiveModule):
         min_age = float(q.get("min_age_s", 86400))
         victims = [r for r in self.system.records.values()
                    if r.kind in ("episodic", "dream", "imagined") and now - r.ts > min_age
-                   and r.importance * r.strength < thr and r.access_count == 0]
+                   and r.importance * self.system.effective_strength(r, now) < thr and r.access_count == 0]
         for r in victims:
             self.system.forget(r)
         return len(victims)
+
+    async def _fade(self, q: dict) -> int:
+        """Sleep: faded episodes lose their details; only the gist is kept (flashbulb memories are spared)."""
+        if not (self.cfg.gist and self.cfg.forgetting):
+            return 0
+        now = self.now()
+        faded = [r for r in self.system.records.values()
+                 if r.kind == "episodic" and not r.context.get("gist") and now - r.ts > self.cfg.gist_min_age_s
+                 and r.importance < self.cfg.keep_detail_importance
+                 and self.system.retention(r, now) < self.cfg.gist_retention]
+        for r in faded:
+            short = gist(r.content)
+            if short == r.content:
+                self.system.save(r, context={**r.context, "gist": True})
+                continue
+            vec = await self.system.embedder.embed_one(short)
+            self.system.save(r, content=short, embedding=vec, context={**r.context, "gist": True})
+            self.system._matrix = None
+        self.stats["gisted"] += len(faded)
+        return len(faded)
+
+    def _episode_view(self, e, now: float) -> dict:
+        return {"id": e.id, "start": e.start, "end": e.end, "when": time_label(e.start, now),
+                "summary": e.summary or e.describe(), "participants": e.participants, "memories": e.n,
+                "ongoing": e.end_reason is None, "ended_by": e.end_reason}
+
+    async def _episodes(self, q: dict) -> dict:
+        """Recall by time: ``text`` may hold a time reference ("yesterday evening", "before you slept")."""
+        now = self.now()
+        ref = time_reference(q.get("text", ""), now) if q.get("text") else None
+        if not self.cfg.episodes:
+            return {"window": ref, "episodes": [], "available": False}
+        if ref is None:
+            eps = [e for e in self.timeline.episodes if e.n][-int(q.get("n", 5)):]
+        elif "anchor" in ref:
+            e = {"before_sleep": self.timeline.before_last_sleep, "after_sleep": self.timeline.after_last_sleep,
+                 "first": self.timeline.first}[ref["anchor"]]()
+            eps = [e] if e else []
+        else:
+            eps = self.timeline.between(ref["start"], ref["end"])
+        return {"window": ref, "available": True, "episodes": [self._episode_view(e, now) for e in eps[-3:]]}
 
     async def _sample(self, q: dict) -> list[dict]:
         """Weighted random fragments for dream-like recombination."""
@@ -549,8 +666,11 @@ class Memory(CognitiveModule):
             "embedder": self.ctx.embedder.name,
             "recent": [{"kind": r.kind, "content": r.content, "time": fmt_clock(r.ts),
                         "importance": round(r.importance, 2), "strength": round(r.strength, 2),
+                        "retention": round(self.system.retention(r, self.now()), 2), "gist": bool(r.context.get("gist")),
                         "consolidated": bool(r.consolidated)} for r in recent],
             "retrievals": self.recent_retrievals[:8],
+            "episodes": [self._episode_view(e, self.now()) for e in self.timeline.episodes[-6:]][::-1],
+            "temporal": dict(self.stats),
         }
 
     def trace_state(self) -> dict:

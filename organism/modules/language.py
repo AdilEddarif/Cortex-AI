@@ -79,6 +79,8 @@ class Language(CognitiveModule):
         }
         if a.asks_about == "dream":
             topics["dreams"] = ("memory.recent", {"kinds": ["dream"], "n": 3})
+        if a.asks_about == "past":
+            topics["timeline"] = ("memory.episodes", {"text": a.text})
         if a.asks_about in ("thinking", "reason"):
             topics["thoughts"] = ("thought.recent", {})
         if a.intent == "question" and a.asks_about == "general":  # something one might have read about

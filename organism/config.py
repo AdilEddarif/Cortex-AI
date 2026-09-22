@@ -109,6 +109,16 @@ class MemoryCfg(BaseModel):
     auto_retrieve_threshold: float = 0.35
     recency_half_life_s: float = 86400.0
     refractory_s: float = 120.0
+    # Temporal memory (each part can be switched off for ablations).
+    forgetting: bool = True              # forgetting curve: retention = exp(-t / stability)
+    stability_base_s: float = 21600.0    # stability of an average episode (6 h), scaled by importance/emotion/kind
+    access_floor: float = 0.05           # below this effective strength a memory needs a strong cue to come back
+    gist: bool = True                    # faded episodes lose their details and keep their gist (during sleep)
+    gist_retention: float = 0.5          # ... once retention falls below this
+    gist_min_age_s: float = 3600.0
+    keep_detail_importance: float = 0.8  # "flashbulb" memories keep their details
+    episodes: bool = True                # experience is segmented into episodes that can be recalled by time
+    boundary_surprise: float = 0.7       # a surprise this large starts a new episode
 
 
 class ThoughtCfg(BaseModel):

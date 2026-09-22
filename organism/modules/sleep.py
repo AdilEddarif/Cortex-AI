@@ -141,6 +141,7 @@ class Sleep(CognitiveModule):
         if self._maintenance_done:
             return
         self._maintenance_done = True
+        await self.ask_one("memory.fade", {}, default=0)  # faded episodes keep only their gist
         self.stats.pruned += await self.ask_one("memory.prune", {
             "threshold": self.cfg.prune_importance, "min_age_s": self.cfg.prune_min_age_s}, default=0) or 0
         await self.ask_one("self.reflect", {}, default=None)
