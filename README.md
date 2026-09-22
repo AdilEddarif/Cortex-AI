@@ -195,3 +195,7 @@ tests/          unit + integration tests (architectural guarantees, benchmark, d
 Language-model calls take a few seconds on a consumer GPU and are only needed for
 general-knowledge questions. If a call is slow or fails, it times out and falls back to the
 symbolic layer, so cognition never stops. Symbolic mode replies instantly.
+
+## License
+
+[MIT](LICENSE) © 2026 Adil Eddarif

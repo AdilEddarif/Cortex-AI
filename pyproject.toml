@@ -3,6 +3,9 @@ name = "cortex-ai"
 version = "0.1.0"
 description = "An experimental brain-inspired cognitive architecture (a persistent artificial organism)."
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Adil Eddarif" }]
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
@@ -29,7 +32,7 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
