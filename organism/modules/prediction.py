@@ -131,7 +131,8 @@ class Prediction(CognitiveModule):
                 self.error(p.decision_id, f"action:{exp['action']}", exp["expected"],
                            p.result.get("outcome", "rejected"), abs((1.0 if ok else 0.0) - exp["p"]),
                            f"My {exp['action']} action {'succeeded' if ok else 'did not work'} "
-                           f"(I expected p={exp['p']:.2f} of success)", Modality.MOTOR, report_threshold=0.4)
+                           f"(I expected p={exp['p']:.2f} of success)", Modality.MOTOR,
+                           report_threshold=0.6 if ok else 0.4)  # only an unlikely success is surprising
         elif t == EventType.TICK:
             tick = event.data(TickPayload)
             a = tick.body.arousal

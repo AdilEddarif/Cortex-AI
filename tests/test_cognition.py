@@ -120,3 +120,25 @@ def test_thoughts_are_told_as_speech_not_as_internal_logs():
     assert a.asks_about == "thinking"
     r = compose_reply("answer", a, {"thoughts": [{"content": raw}]})
     assert r["text"].startswith("I was just thinking: That was unexpected.") and "(" not in r["text"]
+
+
+def test_mind_wandering_wonders_about_things_not_words():
+    from organism.modules.thought import book_sentence, wonder_topic
+    assert wonder_topic('user said to me: "I just bought a telescope to watch the planets"') == "telescope"
+    assert wonder_topic("I was surprised: that happened unexpectedly") is None      # its own logs
+    assert wonder_topic('user said to me: "it went unexpectedly well"') is None      # no thing to wonder about
+    assert wonder_topic('user said to me: "hi, I\'m Radouane"') is None             # names aren't in books
+    assert book_sentence("Unexpectedly refers to something occurring in an unforeseen manner.", "unexpectedly") is None
+    long = ("A telescope is an optical instrument that gathers light, using lenses or curved mirrors, to make "
+            "distant objects appear larger, brighter and closer to the observer than they really are.")
+    said = book_sentence(long, "telescope")
+    assert said.startswith("A telescope is an optical instrument") and len(said.split()) <= 22 and "…" not in said
+    from organism.modules.thought import recollection, worth_wandering_to
+    assert not worth_wandering_to("I thought: Thinking it over: user's tone became more positive than I expected.")
+    assert not worth_wandering_to("I was surprised: Unexpected speech after a long silence from user.")
+    assert not worth_wandering_to('I said to user: "Got it."')
+    assert worth_wandering_to('user said to me: "I just bought a telescope"')
+    assert not worth_wandering_to('user said to me: "what are you thinking right now?"')
+    assert recollection("The user's name is Radouane.") == "I'm remembering: your name is Radouane."
+    r = recollection("user's tone became warmer. Then something else happened later on.")
+    assert "you's" not in r and "your tone" in r and "later on" not in r

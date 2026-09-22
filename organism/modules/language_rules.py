@@ -680,7 +680,7 @@ def _second_person(text: str) -> str:
     """Turn a stored memory ('user said to me: "X"') into conversational speech ('you said "X"')."""
     t = re.sub(r'^(user|User) said to me: "(.*)"$', r'you said "\2"', text.strip())
     t = re.sub(r'^I said to user: "(.*)"$', r'I said "\1"', t)
-    t = re.sub(r"\bthe user's\b", "your", t, flags=re.I)
+    t = re.sub(r"\b(the )?user's\b", "your", t, flags=re.I)
     t = re.sub(r"\bthe user\b", "you", t, flags=re.I)
     t = re.sub(r"\buser\b", "you", t)
     return t

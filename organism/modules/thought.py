@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import zlib
 from collections import deque
 from typing import Literal
 
@@ -34,6 +35,7 @@ from ..core.events import (
 )
 from ..core.module import CognitiveModule
 from ..core.util import clamp, content_words, cosine, new_id, truncate
+from .temporal_memory import noun_heads
 
 TRIGGER_TYPES = {
     EventType.PREDICTION_ERROR: 2, EventType.WORLD_CONFLICT: 2, EventType.METACOGNITIVE_REPORT: 3,
@@ -134,6 +136,29 @@ _LOG_WORDS = {"decided", "asked", "express", "outcome", "success", "said", "thou
               "digital", "organism", "things", "something", "anything", "nothing", "today", "time", "maybe"}
 
 
+def worth_wandering_to(fragment: str) -> bool:
+    """A mind drifts to things that happened (what was said, seen, heard), not to its own bookkeeping."""
+    t = fragment.strip()
+    if _OWN_LOG.match(t) or t.startswith(("I decided to", "I started up", "I slept", "I tried to")):
+        return False
+    m = re.match(r'^I said to \w+: "(.*)"$', t, flags=re.S)
+    if m and len(m.group(1).split()) < 4:  # "Got it." isn't worth remembering
+        return False
+    m = re.match(r'^\w+ said to me: "(.*)"$', t, flags=re.S)
+    return not (m and re.search(r"(\?\s*$|^(what|who|why|how|are|do|did|can)\b)", m.group(1).strip(), re.I))
+
+
+def _you(text: str) -> str:
+    t = re.sub(r"\b[Tt]he user's\b|\buser's\b", "your", text)
+    return re.sub(r"\b[Tt]he user\b|\buser\b", "you", t)
+
+
+def _first_sentence(text: str, max_words: int = 16) -> str:
+    s = re.split(r"(?<=[.!?])\s+", text.strip())[0].rstrip(".!?")
+    words = s.split()
+    return s if len(words) <= max_words else " ".join(words[:max_words]).rsplit(",", 1)[0]
+
+
 def recollection(fragment: str) -> str:
     """A stored memory as a passing recollection ("I remember when you asked me to smile.")."""
     t = fragment.strip()
@@ -141,24 +166,51 @@ def recollection(fragment: str) -> str:
         return ""
     m = re.match(r"^I decided to (\w+) because (.+?)(;.*)?$", t)
     if m:
-        reason = re.sub(r"\buser\b", "you", m.group(2)).rstrip(". ")
+        reason = _you(m.group(2)).rstrip(". ")
         return f"I remember that {reason}." if reason.startswith("you ") else f"I remember deciding to {m.group(1)}."
     m = re.match(r'^I said to (\w+): "(.*)"$', t)
     if m:
         who = "you" if m.group(1).lower() == "user" else m.group(1)
-        return f'I remember telling {who} "{truncate(m.group(2).rstrip("."), 70)}".'
+        return f'I remember telling {who} "{_first_sentence(m.group(2))}".'
     m = re.match(r'^(\w+) said to me: "(.*)"$', t)
     if m:
         who = "you" if m.group(1).lower() == "user" else m.group(1)
-        return f'I remember {who} saying "{truncate(m.group(2).rstrip("."), 70)}".'
-    return f"I'm remembering: {truncate(re.sub(r'\buser\b', 'you', plain(t)), 90)}."
+        return f'I remember {who} saying "{_first_sentence(m.group(2))}".'
+    return f"I'm remembering: {_you(_first_sentence(plain(t)))}."
+
+
+# The organism's own logs ("I was surprised ...", "I decided to ...") are not about things in the world.
+_OWN_LOG = re.compile(r"^(I (was surprised|decided|thought|adopted|noticed|learned|tried|started|slept|imagined|"
+                      r"remember|recall)|That was unexpected|Hm,)", re.I)
 
 
 def wonder_topic(fragment: str) -> str | None:
-    """Something in a memory worth wondering about: not log vocabulary, not a name (people aren't in books)."""
-    names = {w.lower() for w in re.findall(r"\b[A-Z][a-z]+\b", fragment)}
-    words = [w for w in content_words(fragment) if w not in _LOG_WORDS and w not in names and len(w) > 3]
-    return max(words, key=len) if words else None
+    """A *thing* in a memory worth wondering about: the noun of a noun phrase from something heard or
+    seen ("a telescope"), never a word of its own logs, a name (people aren't in books) or an adverb."""
+    m = re.match(r'^\w+ said to me: "(.*)"$', fragment.strip(), flags=re.S)
+    text = m.group(1) if m else fragment
+    if not m and _OWN_LOG.match(fragment.strip()):
+        return None
+    names = {w.lower() for w in re.findall(r"\b[A-Z][a-z]+\b", text)}
+    heads = [w for w in noun_heads(text) if w not in _LOG_WORDS and w not in names and len(w) > 3
+             and not w.endswith(("ly", "ing", "ed"))]
+    return heads[0] if heads else None
+
+
+_DEFINITION = re.compile(r"\b(refers? to|is a (word|term|adverb|adjective|verb|noun)|means|the term|describes? "
+                         r"something)\b", re.I)
+
+
+def book_sentence(answer: str, topic: str, max_words: int = 22) -> str | None:
+    """One short sentence of what it read about a thing; None for word definitions or unrelated text."""
+    first = re.split(r"(?<=[.!?])\s+", (answer or "").strip())[0].rstrip(".!")
+    if len(first.split()) < 5 or topic not in first.lower() or _DEFINITION.search(first):
+        return None
+    words = first.split()
+    if len(words) > max_words:  # keep the main clause
+        cut = " ".join(words[:max_words])
+        first = cut.rsplit(",", 1)[0] if "," in cut else cut
+    return first
 
 
 def _lower_first(t: str) -> str:
@@ -211,7 +263,9 @@ def rule_thought(ttype: str, summary: str, payload: dict, step: int, extra: dict
     if ttype == "mind_wandering":
         topic = extra.get("topic")
         frag = recollection(extra.get("fragment") or "")
-        wonder = f"I wonder about the {topic}." if topic else "I wonder what will happen next."
+        idle = ["I wonder what will happen next.", "It's quiet for now.", "I wonder what they'll talk about next.",
+                "Nothing much is going on."]
+        wonder = f"I wonder about the {topic}." if topic else idle[zlib.crc32(frag.encode()) % len(idle)]
         return ThoughtStep(thought=f"{frag} {wonder}" if frag else wonder, kind="mind_wandering", confidence=0.4,
                            done=not extra.get("book"))
     return ThoughtStep(thought=f"I notice {_lower_first(plain(summary))}.", kind="observation", confidence=0.5)
@@ -231,6 +285,7 @@ class Thought(CognitiveModule):
         self._task_priority = 99
         self._chain_starts: deque[float] = deque(maxlen=30)
         self._idle_ticks = 0
+        self._wandered: deque[str] = deque(maxlen=3)  # a wandering mind doesn't circle one memory
         self.recent: deque[dict] = deque(maxlen=30)
         self.stats = {"chains": 0, "steps": 0, "interrupted": 0, "loops_stopped": 0, "rate_limited": 0,
                       "deliberations": 0}
@@ -325,16 +380,19 @@ class Thought(CognitiveModule):
         self.stats["chains"] += 1
         extra: dict = {}
         if ttype == "mind_wandering":
-            frags = await self.ask_one("memory.sample", {"n": 1}, default=[])
-            extra["fragment"] = frags[0]["content"] if frags else None
+            frags = await self.ask_one("memory.sample", {"n": 6}, default=[]) or []
+            extra["fragment"] = next((f["content"] for f in frags if worth_wandering_to(f["content"])
+                                      and f["content"] not in self._wandered), None)
+            if extra["fragment"]:
+                self._wandered.append(extra["fragment"])
             if extra["fragment"]:
                 summary = f"a memory: {extra['fragment']}"
                 extra["topic"] = wonder_topic(extra["fragment"])
             if extra.get("topic"):  # wondering about something may bring back what it once read about it
                 book = await self.ask_one("knowledge.query", {"question": f"what is {extra['topic']}"}, default=None) or {}
-                first = re.split(r"(?<=[.!?])\s+", book.get("answer") or "")[0]
-                if book.get("known") and len(first.split()) >= 5 and extra["topic"] in first.lower():
-                    extra["book"] = first
+                said = book_sentence(book.get("answer", ""), extra["topic"]) if book.get("known") else None
+                if said:
+                    extra["book"] = said
         prev_vecs: list[np.ndarray] = []
         prev_texts: list[str] = []
         try:
