@@ -1,0 +1,103 @@
+"""Policy / safety layer between cognition and execution.
+
+    proposed action -> ACTION_SELECTED -> [policy checks] -> ACTION_APPROVED | ACTION_REJECTED
+
+Checks: action type allow-list, effector availability (capability), explicit permissions for
+actions that touch the outside world, rate limits, no external action while asleep, parameter
+sanity. ``safety.check_utterance`` filters outgoing speech (secret redaction, length).
+Rejections are nominated so the organism notices (and learns about) its own limits.
+"""
+from __future__ import annotations
+
+from collections import deque
+
+from ..core.events import (
+    EXTERNAL_ACTIONS, ActionPayload, ActionType, Event, EventType, Mode, TickPayload,
+)
+from ..core.module import CognitiveModule
+from ..core.redact import contains_secret, redact_text
+
+
+class Safety(CognitiveModule):
+    name = "safety"
+    subscriptions = (EventType.ACTION_SELECTED, EventType.TICK)
+
+    def __init__(self, ctx):
+        super().__init__(ctx)
+        self.cfg = self.settings.safety
+        self.mode = Mode.AWAKE
+        self._speech_times: deque[float] = deque(maxlen=100)
+        self.log_entries: deque[dict] = deque(maxlen=40)
+        self.counts = {"approved": 0, "rejected": 0}
+
+    async def start(self) -> None:
+        self.respond("safety.check_utterance", self._check_utterance)
+
+    async def _check_utterance(self, q: dict) -> dict:
+        text = str(q.get("text", ""))
+        issues = []
+        if contains_secret(text):
+            issues.append("secret-like content redacted")
+            text = redact_text(text)
+        if len(text) > self.cfg.max_utterance_chars:
+            issues.append("truncated")
+            text = text[: self.cfg.max_utterance_chars]
+        return {"text": text, "allowed": True, "issues": issues}
+
+    async def handle(self, event: Event) -> None:
+        if event.type == EventType.TICK:
+            self.mode = event.data(TickPayload).body.mode
+            return
+        p = event.data(ActionPayload)
+        reason = self.check(p)
+        entry = {"t": self.now(), "action": p.spec.action.value, "approved": reason is None, "reason": reason}
+        self.log_entries.appendleft(entry)
+        if reason is None:
+            self.counts["approved"] += 1
+            if p.spec.action in (ActionType.SPEAK, ActionType.ASK):
+                self._speech_times.append(self.now())
+            self.emit(EventType.ACTION_APPROVED,
+                      ActionPayload(decision_id=p.decision_id, spec=p.spec, status="approved"),
+                      summary=f"approved {p.spec.action.value}", confidence=p.spec.confidence)
+        else:
+            self.counts["rejected"] += 1
+            self.emit(EventType.ACTION_REJECTED,
+                      ActionPayload(decision_id=p.decision_id, spec=p.spec, status="rejected", reason=reason),
+                      summary=f"I could not {p.spec.action.value}: {reason}", nominated=True, salience=0.45,
+                      confidence=0.95)
+
+    def check(self, p: ActionPayload) -> str | None:
+        a = p.spec.action
+        if a.value not in self.cfg.allowed_actions:
+            return f"'{a.value}' is not allowed by my action policy"
+        if a != ActionType.WAIT and not self.bus.has_responder(f"executor.{a.value}"):
+            if a == ActionType.MOVE:
+                return "I have no body or motor effectors, so I cannot move"
+            if a == ActionType.LOOK:
+                return "I have no working visual sensor to look with"
+            return f"no effector is available for '{a.value}'"
+        perm = self.cfg.action_permissions.get(a.value)
+        if perm and not self.cfg.permissions.get(perm, False):
+            return f"'{a.value}' requires the '{perm}' permission, which has not been granted"
+        if a in EXTERNAL_ACTIONS and self.mode in (Mode.ASLEEP, Mode.DREAMING):
+            return "external actions are disabled while I am asleep"
+        if a in (ActionType.SPEAK, ActionType.ASK):
+            now = self.now()
+            recent = [t for t in self._speech_times if now - t < 60]
+            if len(recent) >= self.speech_limit():
+                return "speech rate limit reached"
+        if a == ActionType.NOTE and len(str(p.spec.params.get("text", ""))) > 2000:
+            return "note too long"
+        return None
+
+    def speech_limit(self) -> int:
+        return self.settings.speech.max_per_minute
+
+    def snapshot(self) -> dict:
+        return {"counts": self.counts, "recent": list(self.log_entries)[:12],
+                "permissions": self.cfg.permissions,
+                "policy": {"allowed": self.cfg.allowed_actions, "permissions_required": self.cfg.action_permissions}}
+
+    def trace_state(self) -> dict:
+        return dict(self.counts)
+

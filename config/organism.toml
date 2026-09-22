@@ -1,0 +1,44 @@
+# CortexAI configuration. Every key can be overridden with an environment variable
+# ORGANISM_<SECTION>__<KEY> (e.g. ORGANISM_LLM__PROVIDER=rule). See organism/config.py for all options.
+
+data_dir = "data"
+seed = 7
+
+[identity]
+name = "CortexAI"
+version = "v1"
+
+[llm]
+provider = "auto"              # auto | ollama | anthropic | rule
+ollama_model = "qwen3.5:4b"    # book knowledge (general-knowledge questions only)
+ollama_vision_model = "qwen3.5:4b"
+anthropic_model = "claude-sonnet-5"
+
+[embeddings]
+provider = "auto"              # auto | ollama | hash
+ollama_model = "nomic-embed-text"
+
+[brainstem]
+wake_period_s = 1800           # awake time until sleep pressure saturates (compressed "day")
+sleep_period_s = 300
+autosleep = true
+
+[vision]
+enabled = false                # server-side camera loop; the dashboard can also send webcam frames
+detector = "yolo"
+yolo_model = "yolo26n.pt"
+describe_with_vlm = false
+
+[audio]
+microphone = false             # server-side mic (needs `sounddevice`); the dashboard can send recordings
+asr_model = "small"
+
+[speech]
+tts = "none"                   # none | kokoro (the dashboard can also speak with the browser voice)
+
+[safety]
+# Actions that reach outside the organism need explicit grants.
+permissions = { digital_write = false }
+
+[modules]
+disabled = []                  # e.g. ["memory"] to ablate long-term memory

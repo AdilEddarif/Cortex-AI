@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organism Brain Map</title>
+<style>
+:root {
+  --stage: #04060b; --panel: rgba(13, 18, 29, .86); --line: rgba(140, 180, 230, .16); --ink: #d4e4f7; --muted: #7c8ba3;
+  --core: #6cb6ff; --sense: #5fd39a; --mem: #ff8fc7; --exec: #f2c14e; --affect: #ff7a7a; --self: #b79cff;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--stage); color: var(--ink); overflow: hidden;
+  font: 13px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+#wrap { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
+#stage { width: 100%; height: 100%; display: block; }
+#side { background: var(--panel); border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px; }
+header { position: fixed; top: 12px; left: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 2;
+  max-width: calc(100vw - 390px); }
+header b { font-size: 15px; }
+.pill { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); background: rgba(0,0,0,.35); }
+.pill.mode-AWAKE { color: var(--sense); border-color: var(--sense); } .pill.mode-DROWSY { color: var(--exec); border-color: var(--exec); }
+.pill.mode-ASLEEP { color: var(--core); border-color: var(--core); } .pill.mode-DREAMING { color: var(--self); border-color: var(--self); }
+h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 14px 0 6px; font-weight: 650;
+  display: flex; justify-content: space-between; }
+h2 span { text-transform: none; letter-spacing: 0; font-family: var(--mono); font-weight: 500; }
+h2:first-child { margin-top: 0; }
+canvas.chart { width: 100%; display: block; background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 8px; }
+.item { padding: 5px 8px; border-radius: 7px; background: rgba(255,255,255,.04); margin: 4px 0; border-left: 3px solid var(--line); word-break: break-word; }
+.item small, .muted { color: var(--muted); font-size: 11.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+pre { white-space: pre-wrap; word-break: break-word; font: 11px var(--mono); color: var(--muted); max-height: 260px; overflow: auto; margin: 0; }
+a { color: var(--core); } button { font: inherit; color: var(--ink); background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 7px; padding: 4px 9px; cursor: pointer; }
+@media (max-width: 900px) { #wrap { grid-template-columns: 1fr; grid-template-rows: 58vh 1fr; } #side { border-left: none; border-top: 1px solid var(--line); }
+  header { max-width: calc(100vw - 28px); } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="stage"></canvas>
+  <aside id="side">
+    <h2>Sleep / wake (hypnogram) <span id="modeNow">–</span></h2>
+    <canvas id="hypno" class="chart" height="110"></canvas>
+    <h2>Region activity (measured event flow) <span>last 2 min</span></h2>
+    <canvas id="traces" class="chart" height="190"></canvas>
+    <h2>Global workspace <span id="wsCycle"></span></h2>
+    <div id="workspace"></div>
+    <h2>Right now</h2>
+    <div id="now"></div>
+    <h2>Selected region <span id="selName">click a region</span></h2>
+    <div id="selInfo" class="muted">Click any region on the map to inspect its live state.</div>
+    <h2>Legend</h2>
+    <div class="legend">
+      <span><i style="background:var(--core)"></i>core / routing</span><span><i style="background:var(--sense)"></i>sensory</span>
+      <span><i style="background:var(--mem)"></i>memory</span><span><i style="background:var(--exec)"></i>executive / motor</span>
+      <span><i style="background:var(--affect)"></i>affect</span><span><i style="background:var(--self)"></i>self / imagination</span>
+    </div>
+    <p class="muted">Placement is loosely inspired by anatomy (e.g. memory ↔ hippocampus, vision ↔ occipital lobe); it is a map of
+      this software's modules, not a claim that they are those brain structures. Pulses follow the real subscription wiring.</p>
+  </aside>
+</div>
+<header>
+  <b>Brain map</b><span id="mode" class="pill">…</span><span class="pill" id="arousal">arousal –</span>
+  <span class="pill" id="gain">sensory gain –</span><span class="pill" id="rate">– ev/s</span>
+  <a href="/face" target="_blank"><button>Face</button></a><a href="/" target="_blank"><button>Dashboard</button></a>
+</header>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const now = () => performance.now() / 1000;
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+// ------------------------------------------------------------------ regions (sagittal view, frontal lobe on the left)
+const FAM = { core: "--core", sense: "--sense", mem: "--mem", exec: "--exec", affect: "--affect", self: "--self" };
+const REGIONS = {
+  thalamus:       { x: 0.52, y: 0.47, fam: "core",   label: "thalamus (bus)", anat: "thalamus: routes every event" },
+  brainstem:      { x: 0.56, y: 0.84, fam: "core",   label: "brainstem", anat: "arousal, rhythm, sleep/wake" },
+  sleep:          { x: 0.45, y: 0.62, fam: "core",   label: "sleep", anat: "hypothalamus-like sleep control" },
+  attention:      { x: 0.60, y: 0.15, fam: "core",   label: "attention", anat: "salience network / parietal" },
+  workspace:      { x: 0.49, y: 0.27, fam: "core",   label: "global workspace", anat: "fronto-parietal broadcast" },
+  workspace_bypass: { x: 0.49, y: 0.27, fam: "core", label: "local relay (ablated)", anat: "workspace removed" },
+  metacognition:  { x: 0.09, y: 0.44, fam: "self",   label: "metacognition", anat: "frontopolar cortex" },
+  self_model:     { x: 0.19, y: 0.30, fam: "self",   label: "self-model", anat: "medial prefrontal cortex" },
+  thought:        { x: 0.25, y: 0.18, fam: "exec",   label: "thought", anat: "dorsolateral prefrontal / inner speech" },
+  working_memory: { x: 0.30, y: 0.31, fam: "mem",    label: "working memory", anat: "prefrontal" },
+  goals:          { x: 0.15, y: 0.57, fam: "exec",   label: "goals", anat: "ventromedial prefrontal" },
+  safety:         { x: 0.26, y: 0.64, fam: "exec",   label: "safety / inhibition", anat: "orbitofrontal control" },
+  language:       { x: 0.34, y: 0.48, fam: "exec",   label: "language", anat: "Broca / Wernicke areas" },
+  speech:         { x: 0.40, y: 0.14, fam: "exec",   label: "speech", anat: "motor cortex (mouth)" },
+  expression:     { x: 0.39, y: 0.31, fam: "exec",   label: "expression", anat: "motor cortex (face)" },
+  action:         { x: 0.43, y: 0.45, fam: "exec",   label: "action selection", anat: "basal ganglia" },
+  emotion:        { x: 0.40, y: 0.70, fam: "affect", label: "valuation", anat: "amygdala / limbic system" },
+  memory:         { x: 0.56, y: 0.65, fam: "mem",    label: "long-term memory", anat: "hippocampus + cortex" },
+  audition:       { x: 0.63, y: 0.52, fam: "sense",  label: "audition", anat: "auditory (temporal) cortex" },
+  world_model:    { x: 0.72, y: 0.31, fam: "mem",    label: "world model", anat: "posterior parietal / temporal" },
+  imagination:    { x: 0.64, y: 0.24, fam: "self",   label: "imagination", anat: "default-mode network (precuneus)" },
+  vision:         { x: 0.89, y: 0.42, fam: "sense",  label: "vision", anat: "occipital (visual) cortex" },
+  prediction:     { x: 0.80, y: 0.72, fam: "core",   label: "prediction", anat: "forward models (cerebellum-like)" },
+};
+const SENSORY = new Set(["vision", "audition"]);
+let topo = { subscriptions: {}, modules: [] };
+const act = {}; Object.keys(REGIONS).forEach(k => act[k] = 0);
+const history = [];      // [{t, a:{region: activity}}]
+const hypno = [];        // [{t, mode}]
+const pulses = [], rings = [];
+let org = { mode: "AWAKE", arousal: 0.45, gain: 1, state: null };
+let selected = null, eventCount = 0, rateT = now(), rate = 0;
+
+// ------------------------------------------------------------------ canvas & geometry
+const cv = $("stage"), ctx = cv.getContext("2d");
+let W = 0, H = 0, BX = 0, BY = 0, BW = 1, BH = 1, DPR = 1;
+const OUTLINE = [ // cerebrum outline in brain-box units (front = left)
+  [0.06, 0.52], [0.04, 0.38], [0.09, 0.22], [0.2, 0.1], [0.36, 0.04], [0.52, 0.03], [0.68, 0.07], [0.82, 0.15], [0.93, 0.28],
+  [0.97, 0.42], [0.94, 0.55], [0.86, 0.62], [0.72, 0.62], [0.64, 0.66], [0.58, 0.76], [0.5, 0.76], [0.42, 0.78], [0.33, 0.75],
+  [0.26, 0.7], [0.17, 0.68], [0.1, 0.62]];
+let brainPath = null, cerebPath = null, stemPath = null, fieldDots = [];
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect(); W = r.width; H = r.height;
+  cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  BW = Math.min(W * 0.9, (H - 70) * 1.45); BH = BW / 1.45; BX = (W - BW) / 2; BY = 60 + (H - 70 - BH) / 2;
+  const P = (x, y) => [BX + x * BW, BY + y * BH];
+  brainPath = new Path2D(); const pts = OUTLINE.map(([x, y]) => P(x, y));
+  brainPath.moveTo(...mid(pts[pts.length - 1], pts[0]));
+  pts.forEach((p, i) => brainPath.quadraticCurveTo(...p, ...mid(p, pts[(i + 1) % pts.length])));
+  cerebPath = new Path2D(); cerebPath.ellipse(...P(0.8, 0.72), BW * 0.12, BH * 0.1, -0.15, 0, 7);
+  stemPath = new Path2D(); stemPath.moveTo(...P(0.51, 0.7)); stemPath.quadraticCurveTo(...P(0.5, 0.88), ...P(0.54, 1.0));
+  stemPath.lineTo(...P(0.61, 1.0)); stemPath.quadraticCurveTo(...P(0.6, 0.86), ...P(0.63, 0.7)); stemPath.closePath();
+  fieldDots = [];
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const step = Math.max(9, BW / 70);
+  for (let y = BY; y < BY + BH * 1.02; y += step) for (let x = BX; x < BX + BW; x += step) {
+    const px = x + (rnd() - 0.5) * step * 0.8, py = y + (rnd() - 0.5) * step * 0.8;
+    if (ctx.isPointInPath(brainPath, px * DPR, py * DPR) || ctx.isPointInPath(cerebPath, px * DPR, py * DPR) ||
+        ctx.isPointInPath(stemPath, px * DPR, py * DPR)) fieldDots.push([px, py]);
+  }
+}
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+const rpos = k => { const r = REGIONS[k] || REGIONS.thalamus; return [BX + r.x * BW, BY + r.y * BH]; };
+addEventListener("resize", resize);
+
+function color(fam, alpha = 1, light = 0) {
+  const c = getComputedStyle(document.documentElement).getPropertyValue(FAM[fam] || "--core").trim();
+  if (!light && alpha === 1) return c;
+  const n = parseInt(c.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  const f = v => Math.min(255, Math.round(v + (255 - v) * light));
+  return `rgba(${f(r)},${f(g)},${f(b)},${alpha})`;
+}
+function modeTint() {
+  return { AWAKE: [0, 0, 0], DROWSY: [30, 22, 0], ASLEEP: [0, 8, 30], DREAMING: [22, 0, 38] }[org.mode] || [0, 0, 0];
+}
+
+// ------------------------------------------------------------------ activity from real events
+const QUIET = new Set(["TICK", "WM_UPDATED", "PREDICTION_MADE"]);
+function targetsFor(e) {
+  const direct = (topo.subscriptions[e.type] || []).filter(m => m !== e.source);
+  const wild = e.nominated ? (topo.subscriptions["*"] || []).filter(m => m !== e.source) : [];
+  return [...new Set([...direct, ...wild])];
+}
+function onEvent(e) {
+  if (QUIET.has(e.type)) return;
+  eventCount++;
+  const src = REGIONS[e.source] ? e.source : (e.source === "organism" || e.source === "operator" || e.source === "console") ? "thalamus" : null;
+  if (src) act[src] = Math.min(3, act[src] + 0.55);
+  act.thalamus = Math.min(3, act.thalamus + 0.08);
+  if (e.type === "WORKSPACE_UPDATED" && e.summary && !/workspace\[0\]/.test(e.summary)) rings.push({ k: e.source, r: 0, a: 1 });
+  if (!src) return;
+  const targets = targetsFor(e).filter(t => REGIONS[t]);
+  if (pulses.length > 350) return;
+  for (const t of targets.slice(0, 14)) pulses.push({ from: src, to: t, u: 0, via: true, fam: REGIONS[src].fam, speed: 1.3 + Math.random() * 0.6 });
+}
+
+// ------------------------------------------------------------------ drawing
+let lastT = now(), lastSample = 0;
+function frame() {
+  const t = now(), dt = Math.min(0.05, t - lastT); lastT = t;
+  for (const k in act) act[k] *= Math.exp(-dt / 0.9);
+  if (t - rateT > 1) { rate = eventCount / (t - rateT); eventCount = 0; rateT = t; $("rate").textContent = `${rate.toFixed(0)} ev/s`; }
+  if (t - lastSample > 0.5) { lastSample = t; history.push({ t, a: { ...act }, arousal: org.arousal }); while (history.length && t - history[0].t > 120) history.shift(); drawTraces(); }
+  const [tr, tg, tb] = modeTint();
+  ctx.fillStyle = `rgb(${4 + tr * 0.3},${6 + tg * 0.3},${11 + tb * 0.4})`; ctx.fillRect(0, 0, W, H);
+  // tissue: faint dots whose brightness follows nearby activity
+  const hot = Object.entries(act).filter(([k, v]) => v > 0.05 && REGIONS[k]).map(([k, v]) => [...rpos(k), v, REGIONS[k].fam, k]);
+  const dim = org.mode === "ASLEEP" ? 0.55 : org.mode === "DREAMING" ? 0.75 : 1;
+  for (const [x, y] of fieldDots) {
+    let glow = 0, fam = "core";
+    for (const [hx, hy, v, f] of hot) { const d2 = ((x - hx) ** 2 + (y - hy) ** 2) / (BW * BW * 0.006); const g = v * Math.exp(-d2); if (g > glow) { glow = g; fam = f; } }
+    ctx.fillStyle = glow > 0.03 ? color(fam, clamp(0.12 + glow * 0.5) * dim, 0.1) : `rgba(120,150,190,${0.13 * dim})`;
+    ctx.fillRect(x - 0.9, y - 0.9, 1.8 + glow * 1.5, 1.8 + glow * 1.5);
+  }
+  ctx.lineWidth = 1.2; ctx.strokeStyle = `rgba(150,180,220,${0.35 * dim})`;
+  ctx.stroke(brainPath); ctx.stroke(cerebPath); ctx.stroke(stemPath);
+  // wiring: faint lines region <-> thalamus
+  ctx.lineWidth = 0.6;
+  for (const k of Object.keys(REGIONS)) {
+    if (k === "thalamus" || !present(k)) continue;
+    const [x, y] = rpos(k), [cx, cy] = rpos("thalamus");
+    ctx.strokeStyle = color(REGIONS[k].fam, 0.08 + 0.25 * clamp(act[k]));
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(cx, cy); ctx.stroke();
+  }
+  // broadcast rings (global ignition)
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i]; r.r += dt * BW * 0.5; r.a -= dt * 0.9;
+    if (r.a <= 0) { rings.splice(i, 1); continue; }
+    const [x, y] = rpos(r.k); ctx.strokeStyle = color("core", r.a * 0.5, 0.3); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r.r, 0, 7); ctx.stroke();
+  }
+  // pulses along source -> thalamus -> target
+  for (let i = pulses.length - 1; i >= 0; i--) {
+    const p = pulses[i]; p.u += dt * p.speed;
+    if (p.u >= 1) { act[p.to] = Math.min(3, act[p.to] + 0.22); pulses.splice(i, 1); continue; }
+    const a = rpos(p.from), c = rpos("thalamus"), b = rpos(p.to);
+    const [x, y] = p.u < 0.5 ? lerp2(a, c, p.u * 2) : lerp2(c, b, (p.u - 0.5) * 2);
+    ctx.fillStyle = color(p.fam, 0.95, 0.35); ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 7); ctx.fill();
+  }
+  // regions
+  ctx.textAlign = "center"; ctx.font = "11.5px system-ui";
+  for (const [k, R] of Object.entries(REGIONS)) {
+    if (!present(k)) continue;
+    let v = clamp(act[k] / 2);
+    if (SENSORY.has(k)) v *= org.gain;                         // thalamic gating during sleep
+    const [x, y] = rpos(k), base = Math.max(7, BW * 0.012), r = base + BW * 0.03 * Math.sqrt(v);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4);
+    g.addColorStop(0, color(R.fam, 0.25 + 0.6 * v, 0.2)); g.addColorStop(1, color(R.fam, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, 7); ctx.fill();
+    ctx.fillStyle = color(R.fam, 0.55 + 0.45 * v, 0.15 + 0.4 * v); ctx.beginPath(); ctx.arc(x, y, base * 0.55 + 3 * v, 0, 7); ctx.fill();
+    if (selected === k) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 7); ctx.stroke(); }
+    ctx.fillStyle = `rgba(215,228,247,${0.55 + 0.45 * v})`; ctx.fillText(R.label, x, y + base + 14);
+  }
+  if (org.mode === "ASLEEP" || org.mode === "DREAMING") {
+    ctx.fillStyle = org.mode === "DREAMING" ? color("self", 0.9) : color("core", 0.9); ctx.font = "600 13px system-ui"; ctx.textAlign = "left";
+    ctx.fillText(org.mode === "DREAMING" ? "REM-like phase: dream-like simulation, sensory input gated" : "NREM-like phase: memory replay & consolidation, sensory input gated",
+      BX, BY + BH * 1.06 + 8);
+  }
+  requestAnimationFrame(frame);
+}
+const lerp2 = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+function present(k) {
+  if (k === "thalamus") return true;
+  if (!topo.modules.length) return k !== "workspace_bypass";
+  return topo.modules.includes(k);
+}
+
+// ------------------------------------------------------------------ side panel charts
+const TRACES = [["brainstem", "core"], ["attention", "core"], ["workspace", "core"], ["thought", "exec"], ["memory", "mem"],
+  ["emotion", "affect"], ["vision", "sense"], ["audition", "sense"], ["sleep", "core"], ["imagination", "self"]];
+function drawTraces() {
+  const c = $("traces"), g = c.getContext("2d"), w = c.width = c.clientWidth * DPR, h = c.height = 190 * DPR;
+  g.clearRect(0, 0, w, h); if (history.length < 2) return;
+  const t1 = history[history.length - 1].t, rows = TRACES.length, rh = h / rows;
+  g.font = `${10 * DPR}px system-ui`;
+  TRACES.forEach(([k, fam], i) => {
+    const y0 = (i + 1) * rh - 3 * DPR;
+    g.fillStyle = "rgba(124,139,163,.9)"; g.fillText(k, 4 * DPR, y0 - rh * 0.45);
+    g.strokeStyle = color(fam, 0.9); g.lineWidth = 1.3 * DPR; g.beginPath();
+    history.forEach((s, j) => { const x = 70 * DPR + (w - 74 * DPR) * (1 - (t1 - s.t) / 120), y = y0 - clamp((s.a[k] || 0) / 2) * rh * 0.85;
+      j ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.stroke();
+  });
+}
+const STAGE_Y = { AWAKE: 0, DREAMING: 1, DROWSY: 2, ASLEEP: 3 };
+function drawHypno() {
+  const c = $("hypno"), g = c.getContext("2d"), w = c.width = c.clientWidth * DPR, h = c.height = 110 * DPR;
+  g.clearRect(0, 0, w, h);
+  const labels = ["awake", "REM-like", "drowsy", "NREM-like"], top = 8 * DPR, rowH = (h - 22 * DPR) / 3;
+  g.font = `${10 * DPR}px system-ui`; g.fillStyle = "rgba(124,139,163,.9)";
+  labels.forEach((l, i) => g.fillText(l, 4 * DPR, top + i * rowH + 4 * DPR));
+  const tEnd = Date.now() / 1000, span = 15 * 60, x0 = 70 * DPR, xw = w - 74 * DPR;
+  const pts = hypno.filter(p => tEnd - p.t < span);
+  if (!pts.length) return;
+  g.lineWidth = 2 * DPR; g.beginPath();
+  let prev = null;
+  for (const p of pts) {
+    const x = x0 + xw * (1 - (tEnd - p.t) / span), y = top + STAGE_Y[p.mode] * rowH;
+    if (!prev) g.moveTo(x, y); else { g.lineTo(x, top + STAGE_Y[prev.mode] * rowH); g.lineTo(x, y); }
+    prev = p;
+  }
+  g.lineTo(x0 + xw, top + STAGE_Y[prev.mode] * rowH);
+  g.strokeStyle = color("self", 0.9); g.stroke();
+  g.fillStyle = "rgba(124,139,163,.8)"; g.fillText("−15 min", x0, h - 4 * DPR); g.fillText("now", w - 24 * DPR, h - 4 * DPR);
+}
+
+// ------------------------------------------------------------------ state updates
+function onState(s) {
+  const m = s.modules || {}, bs = m.brainstem || {};
+  org = { mode: bs.mode || org.mode, arousal: bs.arousal ?? org.arousal, gain: bs.gain ?? 1, state: s };
+  $("mode").textContent = org.mode; $("mode").className = "pill mode-" + org.mode; $("modeNow").textContent = org.mode;
+  $("arousal").textContent = `arousal ${(+org.arousal).toFixed(2)}`; $("gain").textContent = `sensory gain ${org.gain}`;
+  const last = hypno[hypno.length - 1];
+  if (!last || last.mode !== org.mode) hypno.push({ t: Date.now() / 1000, mode: org.mode });
+  drawHypno();
+  const ws = m.workspace || m.workspace_bypass || {};
+  $("wsCycle").textContent = ws.cycle ? `cycle ${ws.cycle}` : "";
+  $("workspace").innerHTML = (ws.items || []).map((it, i) => `<div class="item" style="border-left-color:var(${i ? "--line" : "--core"})">${esc(it.summary)}<br><small>${it.type} · ${it.source} · score ${it.score}</small></div>`).join("")
+    || `<span class="muted">${esc(ws.mode || "empty")}</span>`;
+  const th = m.thought?.current, sl = m.sleep || {}, em = m.emotion || {};
+  const dream = org.mode === "DREAMING" && sl.dreams?.[0] ? `<div class="item" style="border-left-color:var(--self)">💤 ${esc(sl.dreams[0].narrative)}</div>` : "";
+  $("now").innerHTML = dream +
+    (th ? `<div class="item" style="border-left-color:var(--self)">💭 ${esc(th.content)}<br><small>${th.kind} · ${th.model}</small></div>` : "") +
+    `<div class="item"><small>valence</small> ${(em.valence ?? 0).toFixed(2)} · <small>dominant</small> ${esc(em.dominant || "–")}<br>` +
+    `<small>sleep cycles</small> ${bs.sleep_cycles ?? 0} · <small>sleep pressure</small> ${(bs.sleep_pressure ?? 0).toFixed(2)} · <small>energy</small> ${(bs.energy ?? 0).toFixed(2)}` +
+    (sl.current?.replayed ? `<br><small>this sleep: replayed ${sl.current.replayed}, abstracted ${sl.current.abstractions.length}, dreams ${sl.current.dreams}</small>` : "") + `</div>`;
+  if (selected) showSelected();
+}
+function showSelected() {
+  const R = REGIONS[selected], st = org.state?.modules?.[selected], ms = org.state?.bus?.modules?.[selected];
+  $("selName").textContent = R.label;
+  const subs = Object.entries(topo.subscriptions).filter(([, v]) => v.includes(selected)).map(([k]) => k);
+  $("selInfo").innerHTML = `<div class="muted">${esc(R.anat)}</div>` +
+    (ms ? `<div class="muted">processed ${ms.processed} events · busy ${ms.busy_ms} ms · queue ${ms.queued}${ms.errors ? " · errors " + ms.errors : ""}</div>` : "") +
+    `<div class="muted">listens to: ${subs.map(esc).join(", ") || (selected === "thalamus" ? "everything (it is the router)" : "–")}</div>` +
+    (st ? `<pre>${esc(JSON.stringify(st, null, 1).slice(0, 2500))}</pre>` : "");
+}
+cv.addEventListener("click", ev => {
+  const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+  let best = null, bd = 1e9;
+  for (const k of Object.keys(REGIONS)) { if (!present(k)) continue; const [px, py] = rpos(k), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = k; } }
+  if (bd < BW * 0.06) { selected = best; showSelected(); }
+});
+
+// ------------------------------------------------------------------ connection
+async function init() {
+  resize();
+  try { topo = await (await fetch("/api/topology")).json(); } catch (e) {}
+  try {   // hypnogram history from the event log
+    const evs = await (await fetch("/api/events?limit=300&types=MODE_CHANGED")).json();
+    evs.reverse().forEach(e => hypno.push({ t: e.ts, mode: e.payload.current }));
+  } catch (e) {}
+  connect(); requestAnimationFrame(frame);
+}
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onmessage = m => { const d = JSON.parse(m.data); if (d.kind === "update") { d.events.forEach(onEvent); onState(d.state); } };
+  ws.onclose = () => { $("mode").textContent = "disconnected"; setTimeout(connect, 2000); };
+}
+init();
+</script>
+</body>
+</html>

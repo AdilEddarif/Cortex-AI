@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organism Face</title>
+<style>
+:root {
+  --stage: #05070c; --ink: #cfe7ff; --muted: #7d8ea8; --line: rgba(140, 180, 230, .18);
+  --glass: rgba(14, 20, 32, .72); --accent: #6cc4ff; --warn: #f2c14e; --bad: #ff7a7a; --violet: #b79cff;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --glass: rgba(14, 20, 32, .78); }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--stage); color: var(--ink); overflow: hidden;
+  font: 14px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hud { position: fixed; z-index: 2; background: var(--glass); border: 1px solid var(--line); border-radius: 12px;
+  backdrop-filter: blur(6px); padding: 8px 12px; }
+#status { top: 12px; left: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: calc(100vw - 24px); }
+#status b { font-weight: 650; letter-spacing: .3px; }
+.pill { font: 600 11px ui-monospace, Menlo, Consolas, monospace; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.meter { width: 70px; height: 5px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.meter i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+#controls { top: 12px; right: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 62vw; }
+#voices { max-width: 170px; }
+button, select, input[type=text] { font: inherit; font-size: 13px; color: var(--ink); background: rgba(255,255,255,.05);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+button { cursor: pointer; } button:hover { border-color: var(--accent); } button.on { background: var(--accent); color: #031018; border-color: var(--accent); }
+#captions { left: 50%; transform: translateX(-50%); bottom: 72px; width: min(760px, calc(100vw - 24px)); text-align: center;
+  background: transparent; border: none; backdrop-filter: none; pointer-events: none; }
+#say-line { font-size: clamp(16px, 2.2vw, 22px); min-height: 1.4em; text-shadow: 0 2px 12px #000; }
+#say-line .done { color: var(--ink); } #say-line .now { color: #fff; text-shadow: 0 0 12px var(--accent); } #say-line .todo { color: var(--muted); }
+#hear-line { color: var(--muted); font-size: 14px; min-height: 1.3em; margin-top: 6px; }
+#thought-line { color: var(--violet); font-style: italic; font-size: 13px; min-height: 1.2em; margin-bottom: 6px; opacity: .85; }
+#inputbar { left: 50%; transform: translateX(-50%); bottom: 12px; width: min(760px, calc(100vw - 24px)); display: flex; gap: 6px; }
+#inputbar input { flex: 1; min-width: 0; }
+#eyeview { right: 12px; bottom: 72px; padding: 6px; width: 220px; }
+#eyeview .wrap { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: #000; }
+#eyeview video, #eyeview canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+#eyeview small { color: var(--muted); display: block; margin-top: 4px; font-size: 11px; }
+#gate { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(3, 5, 9, .82); }
+#gate .card { max-width: 440px; margin: 16px; padding: 22px; border-radius: 14px; background: #0c121d; border: 1px solid var(--line); }
+#gate h1 { margin: 0 0 8px; font-size: 20px; } #gate p { color: var(--muted); margin: 0 0 14px; }
+#gate label { display: block; margin: 6px 0; } #gate button { margin-top: 12px; width: 100%; padding: 10px; font-size: 15px; }
+.hidden { display: none !important; }
+a { color: var(--accent); }
+@media (max-width: 640px) { #eyeview { width: 128px; bottom: 120px; } #controls { max-width: 100vw; top: 64px; left: 12px; right: 12px; justify-content: flex-start; }
+  #captions { bottom: 64px; } }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div id="status" class="hud">
+  <b id="name">CortexAI</b>
+  <span id="mode" class="pill">…</span>
+  <span title="arousal">arousal <span class="meter"><i id="arousal"></i></span></span>
+  <span title="valence" id="valence" class="pill">valence –</span>
+  <span id="state" class="pill">idle</span>
+</div>
+
+<div id="controls" class="hud">
+  <button id="btnCam" title="Eyes: stream the webcam to the visual system">👁 Eyes</button>
+  <button id="btnMic" title="Ears: continuous speech recognition">👂 Ears</button>
+  <button id="btnVoice" title="Mouth: speak replies aloud">👄 Voice</button>
+  <select id="voices" title="Voice"></select>
+  <button id="btnThoughts" class="on" title="Show inner thoughts">💭</button>
+  <button id="btnSleep">Sleep</button><button id="btnWake">Wake</button>
+  <a href="/brain" target="_blank"><button>🧠 Brain</button></a>
+  <a href="/" target="_blank"><button>Dashboard</button></a>
+</div>
+
+<div id="captions" class="hud">
+  <div id="thought-line"></div>
+  <div id="say-line"></div>
+  <div id="hear-line"></div>
+</div>
+
+<div id="inputbar" class="hud">
+  <input type="text" id="say" placeholder="Talk to it (or turn on Ears and just speak)…" autocomplete="off">
+  <button id="btnSend">Send</button>
+  <button id="btnPTT" class="hidden" title="Hold to talk (server speech recognition)">🎙 Hold</button>
+</div>
+
+<div id="eyeview" class="hud hidden">
+  <div class="wrap"><video id="video" autoplay muted playsinline></video><canvas id="boxes"></canvas></div>
+  <small id="seen">what it sees</small>
+</div>
+
+<div id="gate">
+  <div class="card">
+    <h1>Wake the face</h1>
+    <p>The eyes stream your webcam into the organism's visual system (object detection, gaze). The ears feed its
+      auditory channel, and the mouth voices what it decides to say. Everything stays on this computer.</p>
+    <label><input type="checkbox" id="gCam" checked> Eyes (camera)</label>
+    <label><input type="checkbox" id="gMic" checked> Ears (microphone + speech recognition)</label>
+    <label><input type="checkbox" id="gVoice" checked> Voice (speak aloud)</label>
+    <button id="btnStart">Start</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const now = () => performance.now() / 1000;
+
+// ------------------------------------------------------------------ organism state (from the server)
+const org = { mode: "AWAKE", arousal: 0.45, fatigue: 0, valence: 0, emo: {}, focus: "", connected: false };
+const face = {                       // expressive parameters (smoothed every frame)
+  open: 1, openL: 1, openR: 1, wide: 1, smile: 0, raise: 0, frown: 0, worry: 0,
+  mouthOpen: 0, mouthWidth: 1, gaze: { x: 0, y: 0 }, gazeTarget: { x: 0, y: 0 },
+  blink: 0, surprise: 0, thinking: 0, earLevel: 0, dreamJitter: 0,
+};
+let speaking = false, waitingReply = false, lastThoughtAt = -99, lastHeardAt = -99;
+
+// ------------------------------------------------------------------ face geometry (face units: y down, chin ≈ +0.95)
+const EYE_Y = -0.12, EYE_X = 0.30, MOUTH_Y = 0.44;
+function headPoint(t, jaw) {
+  let x = 0.72 * Math.sin(t), y = -0.95 * Math.cos(t);
+  if (y > 0) x *= 1 - 0.2 * (y / 0.95) ** 2;             // narrower chin
+  if (y > 0.35) y += jaw * 0.07 * ((y - 0.35) / 0.6);      // the jaw drops when the mouth opens
+  return [x, y];
+}
+function lidBounds(dx, P, side) {
+  const hw = 0.105, hh = 0.05 * (side < 0 ? P.openL : P.openR) * P.wide;
+  const k = Math.max(0, 1 - (dx / hw) ** 2) ** 0.7;
+  return [EYE_Y - hh * k - 0.004, EYE_Y + hh * 0.75 * k + 0.002];
+}
+function mouthY(x, P, upper, inner) {
+  const mw = 0.2 * P.mouthWidth, u = clamp(Math.abs(x) / mw);
+  const corner = -P.smile * 0.05 * u * u + P.frown * 0.015 * u * u;
+  const bow = 1 - u * u;
+  if (upper) return MOUTH_Y - (inner ? 0.004 : 0.016) - P.mouthOpen * 0.035 * bow + corner;
+  return MOUTH_Y + (inner ? 0.004 : 0.018) + P.mouthOpen * (inner ? 0.12 : 0.15) * bow ** 0.8 + corner;
+}
+
+// Feature point generators: each returns [[x, y, alpha], ...] with a fixed length.
+const FEATURES = {
+  head: { n: 96, loop: true, w: 0.6, f: (i, n, P) => [...headPoint(2 * Math.PI * i / n, P.mouthOpen), 1] },
+  earL: { n: 8, w: 0.5, ear: true, f: (i, n) => { const a = -0.9 + 1.8 * i / (n - 1); return [-0.745 - 0.045 * Math.cos(a), 0.14 * Math.sin(a) - 0.05, 1]; } },
+  earR: { n: 8, w: 0.5, ear: true, f: (i, n) => { const a = -0.9 + 1.8 * i / (n - 1); return [0.745 + 0.045 * Math.cos(a), 0.14 * Math.sin(a) - 0.05, 1]; } },
+  browL: { n: 11, w: 0.9, f: (i, n, P) => brow(-1, i / (n - 1), P) },
+  browR: { n: 11, w: 0.9, f: (i, n, P) => brow(1, i / (n - 1), P) },
+  lidUL: { n: 17, w: 1, f: (i, n, P) => lid(-1, i / (n - 1), P, 0) },
+  lidLL: { n: 13, w: 0.7, f: (i, n, P) => lid(-1, i / (n - 1), P, 1) },
+  lidUR: { n: 17, w: 1, f: (i, n, P) => lid(1, i / (n - 1), P, 0) },
+  lidLR: { n: 13, w: 0.7, f: (i, n, P) => lid(1, i / (n - 1), P, 1) },
+  irisL: { n: 20, loop: true, w: 1, iris: -1, f: (i, n, P) => ring(-1, i, n, 0.042, P) },
+  irisR: { n: 20, loop: true, w: 1, iris: 1, f: (i, n, P) => ring(1, i, n, 0.042, P) },
+  pupilL: { n: 9, loop: true, w: 1.2, iris: -1, f: (i, n, P) => ring(-1, i, n, pupilR(P), P) },
+  pupilR: { n: 9, loop: true, w: 1.2, iris: 1, f: (i, n, P) => ring(1, i, n, pupilR(P), P) },
+  nose: { n: 6, w: 0.5, f: (i, n) => [0.004 * Math.sin(i), -0.1 + 0.24 * i / (n - 1), 0.8] },
+  nostril: { n: 7, w: 0.6, f: (i, n) => { const a = Math.PI * i / (n - 1); return [-0.055 * Math.cos(a), 0.17 + 0.03 * Math.sin(a), 1]; } },
+  lipU: { n: 21, w: 1, mouth: true, f: (i, n, P) => { const x = -0.2 * P.mouthWidth + 0.4 * P.mouthWidth * i / (n - 1); return [x, mouthY(x, P, true, false), 1]; } },
+  lipL: { n: 21, w: 1, mouth: true, f: (i, n, P) => { const x = -0.2 * P.mouthWidth + 0.4 * P.mouthWidth * i / (n - 1); return [x, mouthY(x, P, false, false), 1]; } },
+  lipIU: { n: 13, w: 0.6, mouth: true, f: (i, n, P) => { const x = (-0.15 + 0.3 * i / (n - 1)) * P.mouthWidth; return [x, mouthY(x, P, true, true), clamp(P.mouthOpen * 5)]; } },
+  lipIL: { n: 13, w: 0.6, mouth: true, f: (i, n, P) => { const x = (-0.15 + 0.3 * i / (n - 1)) * P.mouthWidth; return [x, mouthY(x, P, false, true), clamp(P.mouthOpen * 5)]; } },
+};
+function brow(side, u, P) {
+  const cx = side * EYE_X, x = cx - side * 0.08 + side * u * 0.2;
+  const y = -0.3 - P.raise * 0.055 - 0.022 * Math.sin(u * Math.PI) + P.frown * 0.045 * (1 - u) - P.worry * 0.05 * (1 - u) ** 2;
+  return [x, y, 1];
+}
+function lid(side, u, P, lower) {
+  const cx = side * EYE_X, dx = -0.105 + 0.21 * u, [up, lo] = lidBounds(dx, P, side);
+  return [cx + dx, lower ? lo : up, 1];
+}
+function pupilR(P) { return 0.014 * (0.8 + 0.6 * org.arousal + 0.5 * (org.emo.fear || 0)); }
+function ring(side, i, n, r, P) {
+  const cx = side * EYE_X + P.gaze.x * 0.052, cy = EYE_Y + P.gaze.y * 0.022;
+  const a = 2 * Math.PI * i / n, x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+  const [up, lo] = lidBounds(x - side * EYE_X, P, side);
+  const vis = clamp(Math.min(y - up, lo - y) / 0.01);     // only what is between the lids is visible
+  return [x, y, vis];
+}
+
+// ------------------------------------------------------------------ particles
+const parts = [];         // {x, y, vx, vy, feat, idx, rest:[x,y], w}
+const featIndex = {};     // feature name -> [start, n]
+let skinStart = 0, pairs = [];
+function build() {
+  const P0 = { ...face, gaze: { x: 0, y: 0 } };
+  for (const [name, F] of Object.entries(FEATURES)) {
+    featIndex[name] = [parts.length, F.n];
+    for (let i = 0; i < F.n; i++) {
+      const [x, y] = F.f(i, F.n, P0);
+      parts.push({ x, y, vx: 0, vy: 0, feat: name, idx: i, rest: [x, y], a: 1, glow: 0 });
+    }
+  }
+  skinStart = parts.length;
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let gy = -0.9; gy <= 0.9; gy += 0.082) for (let gx = -0.7; gx <= 0.7; gx += 0.082) {
+    const x = gx + (rnd() - 0.5) * 0.05, y = gy + (rnd() - 0.5) * 0.05;
+    const hx = 0.72 * (y > 0 ? 1 - 0.2 * (y / 0.95) ** 2 : 1);
+    if ((x / (hx - 0.03)) ** 2 + (y / 0.92) ** 2 > 1) continue;
+    if (Math.abs(Math.abs(x) - EYE_X) < 0.14 && Math.abs(y - EYE_Y) < 0.075) continue;
+    if (Math.abs(x) < 0.23 && Math.abs(y - MOUTH_Y) < 0.06) continue;
+    parts.push({ x, y, vx: 0, vy: 0, feat: "skin", idx: parts.length, rest: [x, y], a: 1, glow: 0 });
+  }
+  // plexus connections from rest geometry (k nearest within reach)
+  const seen = new Set();
+  for (let i = 0; i < parts.length; i++) {
+    const d = [];
+    for (let j = 0; j < parts.length; j++) if (j !== i) {
+      const dx = parts[i].rest[0] - parts[j].rest[0], dy = parts[i].rest[1] - parts[j].rest[1], dd = Math.hypot(dx, dy);
+      if (dd < 0.12) d.push([dd, j]);
+    }
+    d.sort((a, b) => a[0] - b[0]);
+    for (const [dd, j] of d.slice(0, parts[i].feat === "skin" ? 4 : 2)) {
+      const key = i < j ? i + ":" + j : j + ":" + i;
+      if (!seen.has(key) && parts[i].feat !== parts[j].feat || (parts[i].feat === "skin" && !seen.has(key))) {
+        seen.add(key); pairs.push([i, j, dd]);
+      }
+    }
+  }
+}
+build();
+
+// skin follows the features through a few soft "muscle" handles
+function skinTarget(p, P) {
+  let [x, y] = p.rest;
+  const g = (hx, hy, s) => Math.exp(-((x - hx) ** 2 + (y - hy) ** 2) / (2 * s * s));
+  if (y > 0.3) y += P.mouthOpen * 0.075 * g(0, 0.75, 0.38) * clamp((y - 0.3) / 0.3);
+  const mw = 0.2 * P.mouthWidth;
+  for (const s of [-1, 1]) {
+    const w = g(s * 0.2, MOUTH_Y, 0.16);
+    y -= P.smile * 0.04 * w; x += s * (P.mouthWidth - 1) * 0.08 * w + s * Math.max(0, P.smile) * 0.012 * w;
+    y -= (P.raise * 0.045 - P.frown * 0.02) * g(s * EYE_X, -0.36, 0.2);
+  }
+  return [x, y];
+}
+
+// ------------------------------------------------------------------ rendering
+const cv = $("stage"), ctx = cv.getContext("2d");
+let W = 0, H = 0, S = 1, CX = 0, CY = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight; cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const top = Math.max($("status").getBoundingClientRect().bottom, $("controls").getBoundingClientRect().bottom) + 10;
+  const bottom = H - 150;                                   // keep the chin above captions and input
+  S = Math.max(60, Math.min(W * 0.6, H * 0.34, (bottom - top) / 1.95)); CX = W / 2; CY = top + 0.97 * S;
+}
+addEventListener("resize", resize); resize(); setTimeout(resize, 300);
+
+function palette() {
+  let hue = org.valence >= 0 ? lerp(190, 40, clamp(org.valence * 1.4)) : lerp(190, 225, clamp(-org.valence * 1.4));
+  let sat = 85, light = 52 + org.arousal * 18;
+  if ((org.emo.fear || 0) > 0.35) hue = lerp(hue, 355, clamp((org.emo.fear - 0.35) * 2));
+  if (org.mode === "DREAMING") { hue = 275; light = 48; }
+  if (org.mode === "ASLEEP") { hue = 215; sat = 45; light = 30; }
+  if (org.mode === "DROWSY") light -= 12;
+  return { hue, sat, light };
+}
+const pulses = [];    // travelling signals along the optic / speech lines
+function screen(x, y, depth = 1) {
+  const turnX = face.gaze.x * 0.035 * depth, turnY = face.gaze.y * 0.02 * depth;
+  const breathe = 1 + 0.006 * Math.sin(now() * 2 * Math.PI / (org.mode === "AWAKE" ? 4 : 7));
+  return [CX + (x + turnX) * S * breathe, CY + (y + turnY) * S * breathe];
+}
+const DEPTH = f => (f === "head" || f.startsWith("ear")) ? 0.4 : f === "skin" ? 0.7 : f === "nose" || f === "nostril" ? 1.4 : 1;
+
+let lastT = now();
+function frame() {
+  const t = now(), dt = Math.min(0.05, t - lastT); lastT = t;
+  updateFace(t, dt);
+  const P = face;
+  // targets + spring dynamics
+  for (const [name, F] of Object.entries(FEATURES)) {
+    const [s, n] = featIndex[name];
+    for (let i = 0; i < n; i++) {
+      const [tx, ty, a] = F.f(i, n, P), p = parts[s + i];
+      p.tx = tx; p.ty = ty; p.a = a;
+    }
+  }
+  for (let i = skinStart; i < parts.length; i++) { const [tx, ty] = skinTarget(parts[i], P); parts[i].tx = tx; parts[i].ty = ty; parts[i].a = 1; }
+  const shimmer = 0.0015 + org.arousal * 0.002 + (org.mode === "DREAMING" ? 0.004 : 0);
+  const stiff = parts[0] ? 0.28 : 0;
+  for (const p of parts) {
+    const k = FEATURES[p.feat]?.iris ? 0.55 : p.feat.startsWith("lip") ? 0.45 : stiff;
+    p.vx = (p.vx + (p.tx - p.x) * k) * 0.55 + (Math.random() - 0.5) * shimmer;
+    p.vy = (p.vy + (p.ty - p.y) * k) * 0.55 + (Math.random() - 0.5) * shimmer;
+    p.x += p.vx; p.y += p.vy; p.glow *= 0.94;
+  }
+  // thought ripple: a wave travelling from the forehead
+  for (const r of ripples) {
+    r.r += dt * 0.9;
+    for (const p of parts) { const d = Math.hypot(p.x - r.x, p.y - r.y); if (Math.abs(d - r.r) < 0.05) p.glow = Math.max(p.glow, r.s * (1 - r.r)); }
+  }
+  for (let i = ripples.length - 1; i >= 0; i--) if (ripples[i].r > 1.1) ripples.splice(i, 1);
+
+  // draw
+  const { hue, sat, light } = palette();
+  ctx.clearRect(0, 0, W, H);
+  const bg = ctx.createRadialGradient(CX, CY, S * 0.1, CX, CY, S * 1.6);
+  bg.addColorStop(0, `hsla(${hue},60%,${light * 0.25}%,0.35)`); bg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const pos = parts.map(p => screen(p.x, p.y, DEPTH(p.feat)));
+  // plexus
+  ctx.lineWidth = 0.7;
+  for (const [i, j] of pairs) {
+    const a = parts[i], b = parts[j];
+    const vis = Math.min(a.a, b.a); if (vis < 0.2) continue;
+    const g = Math.max(a.glow, b.glow);
+    ctx.strokeStyle = `hsla(${hue},${sat}%,${light + g * 30}%,${(0.1 + g * 0.5) * vis})`;
+    ctx.beginPath(); ctx.moveTo(...pos[i]); ctx.lineTo(...pos[j]); ctx.stroke();
+  }
+  // feature contours
+  for (const [name, F] of Object.entries(FEATURES)) {
+    const [s, n] = featIndex[name];
+    const boost = F.mouth && speaking ? 0.35 : F.ear ? face.earLevel * 0.8 : 0;
+    ctx.strokeStyle = `hsla(${hue},${sat}%,${light + 10 + boost * 30}%,${0.35 + 0.3 * F.w + boost})`;
+    ctx.lineWidth = F.iris ? 1.2 : 1;
+    ctx.beginPath(); let started = false;
+    for (let i = 0; i <= n - (F.loop ? 0 : 1); i++) {
+      const k = s + (i % n), p = parts[k];
+      if (p.a < 0.3) { started = false; continue; }
+      if (!started) { ctx.moveTo(...pos[k]); started = true; } else ctx.lineTo(...pos[k]);
+    }
+    ctx.stroke();
+  }
+  // dots
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i], F = FEATURES[p.feat]; if (p.a < 0.05) continue;
+    let r = p.feat === "skin" ? 1.1 : F.iris ? 1.7 : 1.5;
+    let l = light + 8 + p.glow * 35;
+    if (F?.ear) { r += face.earLevel * 2.5; l += face.earLevel * 30; }
+    if (F?.mouth && speaking) { r += 0.6; l += 10; }
+    ctx.fillStyle = `hsla(${F?.iris ? (hue + 25) % 360 : hue},${sat}%,${Math.min(95, l)}%,${p.a * (p.feat === "skin" ? 0.55 : 0.95)})`;
+    ctx.beginPath(); ctx.arc(pos[i][0], pos[i][1], r, 0, 7); ctx.fill();
+  }
+  // pupils glow (eyes locked on a person)
+  if (face.open > 0.3) for (const side of [-1, 1]) {
+    const [px, py] = screen(side * EYE_X + face.gaze.x * 0.052, EYE_Y + face.gaze.y * 0.022);
+    const g = ctx.createRadialGradient(px, py, 0, px, py, S * 0.05);
+    g.addColorStop(0, `hsla(${(hue + 25) % 360},90%,70%,${0.25 + (track.lock ? 0.35 : 0)})`); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, S * 0.05, 0, 7); ctx.fill();
+  }
+  drawNerves(hue, dt);
+  requestAnimationFrame(frame);
+}
+
+// optic nerve (eyes -> vision panel) and speech line (mouth -> captions), with travelling pulses
+function drawNerves(hue, dt) {
+  const eyeRect = !$("eyeview").classList.contains("hidden") && $("eyeview").getBoundingClientRect();
+  const lines = [];
+  if (eyeRect) for (const side of [-1, 1]) lines.push({ kind: "optic", from: screen(side * EYE_X, EYE_Y), to: [eyeRect.left + eyeRect.width / 2, eyeRect.top + 8] });
+  const cap = $("say-line").getBoundingClientRect();
+  if (speaking) lines.push({ kind: "speech", from: screen(0, MOUTH_Y + 0.06), to: [cap.left + cap.width / 2, cap.top - 4] });
+  ctx.setLineDash([2, 6]); ctx.lineWidth = 1;
+  for (const L of lines) {
+    const [x0, y0] = L.from, [x1, y1] = L.to, mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 40;
+    ctx.strokeStyle = `hsla(${L.kind === "optic" ? (hue + 25) % 360 : hue},80%,65%,0.25)`;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+    L.pt = u => [(1 - u) ** 2 * x0 + 2 * (1 - u) * u * mx + u * u * x1, (1 - u) ** 2 * y0 + 2 * (1 - u) * u * my + u * u * y1];
+  }
+  ctx.setLineDash([]);
+  for (let i = pulses.length - 1; i >= 0; i--) {
+    const p = pulses[i]; p.u += dt * p.speed;
+    const L = lines.find(l => l.kind === p.kind && (p.kind === "speech" || lines.indexOf(l) % 2 === p.side));
+    if (p.u > 1 || !L) { pulses.splice(i, 1); continue; }
+    const [x, y] = L.pt(p.dir > 0 ? p.u : 1 - p.u);
+    ctx.fillStyle = `hsla(${hue},90%,75%,${1 - p.u * 0.5})`; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.fill();
+  }
+}
+const ripples = [];
+function thoughtRipple(strength = 0.7) { ripples.push({ x: 0, y: -0.55, r: 0, s: strength }); }
+
+// ------------------------------------------------------------------ expression dynamics
+let nextBlink = now() + 3, blinkT = -1, nextSaccade = now() + 1;
+const expr = { name: null, id: null, until: 0 };   // facial expression the organism chose to make
+function exprParams(name, t) {
+  // Returns overrides on top of the emotion-driven face. Missing keys keep the emotional baseline.
+  switch (name) {
+    case "smile": return { smile: 1, raise: 0.15 };
+    case "big_smile": return { smile: 1, mouth: 0.22, raise: 0.25, width: 1.12 };
+    case "laugh": return { smile: 1, mouth: 0.25 + 0.3 * Math.abs(Math.sin(t * 13)), raise: 0.35, open: 0.55 };
+    case "sad": return { smile: -0.9, worry: 0.9, frown: 0.25, open: 0.8 };
+    case "angry": return { smile: -0.45, frown: 1, raise: -0.3, wide: 0.9 };
+    case "surprised": return { raise: 1.3, wide: 1.35, mouth: 0.45, width: 0.72, smile: 0 };
+    case "wink": return { smile: 0.7, winkRight: true };
+    case "eyes_closed": return { open: 0.02 };
+    case "raise_eyebrows": return { raise: 1.2 };
+    case "thinking": return { frown: 0.25, width: 0.85, gaze: { x: -0.6, y: -0.8 } };
+    case "look_left": return { gaze: { x: -1, y: 0 } };      // its left = viewer's right
+    case "look_right": return { gaze: { x: 1, y: 0 } };
+    case "look_up": return { gaze: { x: 0, y: -1 } };
+    case "look_down": return { gaze: { x: 0, y: 1 } };
+    default: return {};
+  }
+}
+function updateFace(t, dt) {
+  const e = org.emo, asleep = org.mode === "ASLEEP" || org.mode === "DREAMING";
+  const X = !asleep && t < expr.until ? exprParams(expr.name, t) : {};
+  face.surprise *= Math.pow(0.25, dt);
+  // eyelids: closed when asleep, heavy when drowsy, blinking faster when tired
+  let baseOpen = asleep ? 0.0 : org.mode === "DROWSY" ? 0.4 : 1 - 0.35 * clamp(org.fatigue - 0.3);
+  if (X.open !== undefined) baseOpen = X.open;
+  if (t > nextBlink && !asleep) { blinkT = t; nextBlink = t + 2 + Math.random() * (4.5 - 2.5 * org.fatigue); }
+  const bp = blinkT > 0 ? (t - blinkT) / 0.16 : 2;
+  const blink = bp < 1 ? Math.sin(bp * Math.PI) : 0;
+  const lidRate = bp < 1 ? 0.8 : asleep || X.open !== undefined ? 0.12 : 0.15;
+  face.open = lerp(face.open, baseOpen * (1 - blink), lidRate);
+  face.openL = face.open;
+  face.openR = X.winkRight ? lerp(face.openR, 0.0, 0.5) : face.open;
+  face.wide = lerp(face.wide, X.wide ?? (1 + 0.2 * (e.urgency || 0) + 0.25 * (e.fear || 0) + 0.3 * face.surprise), 0.12);
+  // brows & mouth corners from the valuation state (or the chosen expression)
+  face.raise = lerp(face.raise, X.raise ?? (0.6 * (e.curiosity || 0) + 0.4 * (e.novelty || 0) + 0.7 * (e.fear || 0) + face.surprise - 0.3), 0.1);
+  face.frown = lerp(face.frown, X.frown ?? (0.9 * (e.frustration || 0) + 0.6 * (e.discomfort || 0)), 0.1);
+  face.worry = lerp(face.worry, X.worry ?? 0.8 * (e.fear || 0), 0.1);
+  const smileTarget = X.smile ?? clamp(org.valence * 1.3, -0.8, 1) * (speaking ? 0.5 : 1);
+  face.smile = lerp(face.smile, asleep ? 0.05 : smileTarget, X.smile !== undefined ? 0.15 : 0.05);
+  // mouth: speech drives it, otherwise it rests (or holds the expression)
+  if (!speaking) {
+    face.mouthOpen = lerp(face.mouthOpen, asleep ? 0.02 : (X.mouth ?? 0), 0.2);
+    face.mouthWidth = lerp(face.mouthWidth, X.width ?? 1, 0.2);
+  } else speechMouth(t);
+  face.earLevel = lerp(face.earLevel, micLevel, 0.3);
+  // gaze: chosen direction > person > motion > thinking > idle saccades; REM jitter while dreaming
+  let target = null;
+  if (track.person && t - track.t < 1.8) { target = track.person; track.lock = true; } else track.lock = false;
+  if (motion.mass > 0.02 && t - motion.t < 0.3) target = target ? { x: lerp(target.x, motion.x, 0.25), y: lerp(target.y, motion.y, 0.25) } : motion;
+  if (X.gaze) target = X.gaze;
+  if (!target) {
+    if (t - lastThoughtAt < 2.5 || waitingReply) target = { x: 0.45 * Math.sin(t * 0.7), y: -0.7 };
+    else if (t > nextSaccade) { face.gazeTarget = { x: (Math.random() - 0.5) * 1.2, y: (Math.random() - 0.5) * 0.8 }; nextSaccade = t + 0.8 + Math.random() * 2.5; }
+  }
+  if (target) face.gazeTarget = { x: clamp(target.x, -1, 1), y: clamp(target.y, -1, 1) };
+  if (org.mode === "DREAMING" && Math.random() < 0.08) face.gazeTarget = { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) };
+  const k = target ? 0.25 : 0.35;
+  face.gaze.x = lerp(face.gaze.x, face.gazeTarget.x, k) + (Math.random() - 0.5) * 0.01;   // microsaccades
+  face.gaze.y = lerp(face.gaze.y, face.gazeTarget.y, k) + (Math.random() - 0.5) * 0.01;
+  const doing = t < expr.until && expr.name ? ` · ${expr.name.replace("_", " ")}` : "";
+  $("state").textContent = (speaking ? "speaking" : waitingReply ? "thinking…" : (t - lastHeardAt < 1.5 ? "listening" : asleep ? "asleep" : "idle")) + doing;
+}
+
+// ------------------------------------------------------------------ mouth: speech & visemes
+const VISEME = [[/[aá]/, 0.95, 1.05], [/[eé]/, 0.55, 1.15], [/[iy]/, 0.35, 1.2], [/[o]/, 0.75, 0.72], [/[uw]/, 0.45, 0.62],
+  [/[mbp]/, 0.0, 0.95], [/[fv]/, 0.12, 1.0], [/[ltdnszc]/, 0.3, 1.05], [/[rgkhjq]/, 0.35, 0.85], [/[x]/, 0.3, 1]];
+function viseme(ch) { ch = (ch || " ").toLowerCase(); for (const [re, o, w] of VISEME) if (re.test(ch)) return [o, w]; return [0.05, 1]; }
+let speech = null;   // {text, words:[{w,start}], t0, charRate, analyser, audio, boundary}
+const queue = [];
+function enqueueSpeech(text, audio) {
+  if (!text) return;
+  queue.length = 0;            // like a person: say the newest thing next, don't recite a backlog of stale replies
+  queue.push({ text, audio });
+  if (!speaking) playNext();
+}
+function playNext() {
+  const item = queue.shift(); if (!item) { speaking = false; resumeEars(); return; }
+  speaking = true; waitingReply = false; pauseEars();
+  speech = { text: item.text, t0: now(), charRate: 14, wordIdx: 0, wordT: now(), boundary: false, analyser: null };
+  renderCaption();
+  const done = () => { speech = null; setTimeout(playNext, 250); renderCaption(true); };
+  if (voiceOn && item.audio) { playAudio(`/api/audio/${item.audio}`, done); return; }
+  if (voiceOn && "speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(item.text);
+    const v = speechSynthesis.getVoices().find(v => v.name === $("voices").value); if (v) u.voice = v;
+    u.rate = 1.02; u.pitch = 1.0;
+    u.onboundary = ev => { if (ev.name === "word" || ev.charIndex !== undefined) { speech && (speech.boundary = true, speech.charIndex = ev.charIndex, speech.wordT = now()); renderCaption(); } };
+    u.onend = done; u.onerror = done;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+    return;
+  }
+  setTimeout(done, item.text.length * 1000 / speech.charRate + 300);    // silent mode: still visibly speaks
+}
+function currentCharIndex(t) {
+  if (!speech) return 0;
+  if (speech.boundary) return speech.charIndex + Math.floor((t - speech.wordT) * speech.charRate);
+  return Math.floor((t - speech.t0) * speech.charRate);
+}
+function speechMouth(t) {
+  if (!speech) return;
+  if (speech.analyser) {
+    const buf = new Uint8Array(speech.analyser.fftSize); speech.analyser.getByteTimeDomainData(buf);
+    let s = 0; for (const b of buf) s += ((b - 128) / 128) ** 2;
+    const rms = Math.sqrt(s / buf.length);
+    face.mouthOpen = lerp(face.mouthOpen, clamp(rms * 6), 0.5); face.mouthWidth = lerp(face.mouthWidth, 1 - rms, 0.3);
+    return;
+  }
+  const i = currentCharIndex(t), ch = speech.text[Math.min(i, speech.text.length - 1)];
+  const [o, w] = i < speech.text.length ? viseme(ch) : [0.02, 1];
+  face.mouthOpen = lerp(face.mouthOpen, o * (0.75 + 0.25 * Math.sin(t * 31)), 0.45);
+  face.mouthWidth = lerp(face.mouthWidth, w, 0.35);
+  if (Math.random() < 0.15) pulses.push({ kind: "speech", u: 0, speed: 1.3, dir: 1 });
+  renderCaption();
+}
+let lastCaption = "";
+function renderCaption(finished) {
+  const el = $("say-line");
+  if (!speech) { if (finished) setTimeout(() => { if (!speaking) el.innerHTML = ""; }, 4000); return; }
+  const i = Math.min(currentCharIndex(now()), speech.text.length);
+  const txt = speech.text, ws = txt.lastIndexOf(" ", i - 1) + 1, we = txt.indexOf(" ", i) < 0 ? txt.length : txt.indexOf(" ", i);
+  const html = `<span class="done">${esc(txt.slice(0, ws))}</span><span class="now">${esc(txt.slice(ws, we))}</span><span class="todo">${esc(txt.slice(we))}</span>`;
+  if (html !== lastCaption) { el.innerHTML = html; lastCaption = html; }
+}
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+let audioCtx = null;
+function playAudio(url, done) {
+  audioCtx = audioCtx || new AudioContext();
+  const a = new Audio(url); a.crossOrigin = "anonymous";
+  const src = audioCtx.createMediaElementSource(a), an = audioCtx.createAnalyser(); an.fftSize = 1024;
+  src.connect(an); an.connect(audioCtx.destination); speech.analyser = an;
+  a.onended = done; a.onerror = done; a.play().catch(done);
+}
+
+// ------------------------------------------------------------------ voices
+let voiceOn = false;
+function loadVoices() {
+  const vs = speechSynthesis.getVoices(); if (!vs.length) return;
+  const prefer = ["Microsoft Aria", "Microsoft Jenny", "Google UK English Female", "Samantha", "Google US English"];
+  const best = vs.find(v => prefer.some(p => v.name.includes(p))) || vs.find(v => v.lang.startsWith("en")) || vs[0];
+  $("voices").innerHTML = vs.map(v => `<option ${v === best ? "selected" : ""}>${esc(v.name)}</option>`).join("");
+}
+if ("speechSynthesis" in window) { speechSynthesis.onvoiceschanged = loadVoices; loadVoices(); } else $("voices").classList.add("hidden");
+
+// ------------------------------------------------------------------ eyes: webcam -> visual system
+const track = { person: null, t: -99, lock: false, objects: [] };
+const motion = { x: 0, y: 0, mass: 0, t: -99 };
+let camStream = null, sending = false, prevSmall = null;
+const small = document.createElement("canvas"); small.width = 64; small.height = 48;
+const sctx = small.getContext("2d", { willReadFrequently: true });
+async function startEyes() {
+  try { camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } }); }
+  catch (e) { flash(`camera unavailable: ${e.message}`); return false; }
+  $("video").srcObject = camStream; $("eyeview").classList.remove("hidden"); $("btnCam").classList.add("on");
+  eyesLoop(); return true;
+}
+function stopEyes() {
+  camStream?.getTracks().forEach(t => t.stop()); camStream = null; track.person = null;
+  $("eyeview").classList.add("hidden"); $("btnCam").classList.remove("on");
+}
+function eyesLoop() {
+  if (!camStream) return;
+  const v = $("video");
+  if (v.videoWidth) {
+    // fast pathway: motion centroid in the browser (retina-like change detection)
+    sctx.drawImage(v, 0, 0, 64, 48);
+    const d = sctx.getImageData(0, 0, 64, 48).data, g = new Uint8Array(64 * 48);
+    for (let i = 0; i < g.length; i++) g[i] = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3;
+    if (prevSmall) {
+      let m = 0, sx = 0, sy = 0;
+      for (let i = 0; i < g.length; i++) if (Math.abs(g[i] - prevSmall[i]) > 28) { m++; sx += i % 64; sy += (i / 64) | 0; }
+      if (m > 20) Object.assign(motion, { x: -((sx / m) / 64 - 0.5) * 2.2, y: ((sy / m) / 48 - 0.5) * 1.6, mass: m / g.length, t: now() });
+    }
+    prevSmall = g;
+    // slow pathway: frames to the organism's visual system (object detection -> percepts, attention, memory)
+    if (!sending) {
+      sending = true;
+      const c = document.createElement("canvas"); c.width = 512; c.height = Math.round(512 * v.videoHeight / v.videoWidth);
+      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+      c.toBlob(async b => {
+        try {
+          const fd = new FormData(); fd.append("file", b, "frame.jpg");
+          const r = await fetch("/api/see?stream=true", { method: "POST", body: fd });
+          if (r.ok) onTracking((await r.json()).tracking);
+          for (const side of [0, 1]) pulses.push({ kind: "optic", side, u: 0, speed: 1.6, dir: -1 });
+        } catch (e) { /* server busy or restarting */ }
+        setTimeout(() => { sending = false; }, 250);
+      }, "image/jpeg", 0.75);
+    }
+  }
+  setTimeout(eyesLoop, 66);
+}
+function onTracking(tr) {
+  if (!tr) return;
+  track.objects = tr.objects || [];
+  const people = track.objects.filter(o => o.label === "person" && o.bbox).sort((a, b) => area(b.bbox) - area(a.bbox));
+  if (people.length) {
+    const [x1, y1, x2, y2] = people[0].bbox, cx = (x1 + x2) / 2, fy = y1 + 0.15 * (y2 - y1);   // look at the face region
+    track.person = { x: -(cx - 0.5) * 2.2, y: (fy - 0.5) * 1.6 }; track.t = now();
+  }
+  drawBoxes();
+  const labels = [...new Set(track.objects.map(o => o.label))];
+  $("seen").textContent = labels.length ? "sees: " + labels.join(", ") : "sees: nothing recognisable";
+}
+const area = b => (b[2] - b[0]) * (b[3] - b[1]);
+function drawBoxes() {
+  const c = $("boxes"), g = c.getContext("2d"); c.width = c.clientWidth; c.height = c.clientHeight;
+  g.clearRect(0, 0, c.width, c.height); g.lineWidth = 1.5; g.font = "11px system-ui";
+  for (const o of track.objects) {
+    const [x1, y1, x2, y2] = o.bbox; g.strokeStyle = o.label === "person" ? "#6cc4ff" : "#f2c14e";
+    g.strokeRect(x1 * c.width, y1 * c.height, (x2 - x1) * c.width, (y2 - y1) * c.height);
+    g.save(); g.scale(-1, 1); g.fillStyle = g.strokeStyle; g.fillText(`${o.label} ${(o.confidence * 100 | 0)}%`, -x2 * c.width + 3, y1 * c.height + 12); g.restore();
+  }
+}
+
+// ------------------------------------------------------------------ ears: microphone -> auditory channel
+let micLevel = 0, micStream = null, recog = null, earsOn = false, earsPaused = false;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+async function startEars() {
+  try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch (e) { flash(`microphone unavailable: ${e.message}`); return false; }
+  audioCtx = audioCtx || new AudioContext();
+  const an = audioCtx.createAnalyser(); an.fftSize = 512; audioCtx.createMediaStreamSource(micStream).connect(an);
+  const buf = new Uint8Array(an.fftSize);
+  (function level() { if (!micStream) return; an.getByteTimeDomainData(buf); let s = 0; for (const b of buf) s += ((b - 128) / 128) ** 2;
+    micLevel = speaking ? 0 : clamp(Math.sqrt(s / buf.length) * 8); requestAnimationFrame(level); })();
+  earsOn = true; $("btnMic").classList.add("on");
+  if (SR) startRecognition(); else { $("btnPTT").classList.remove("hidden"); flash("Continuous recognition needs Chrome or Edge: use Hold to talk."); }
+  return true;
+}
+function startRecognition() {
+  recog = new SR(); recog.continuous = true; recog.interimResults = true; recog.lang = navigator.language || "en-US";
+  recog.onresult = ev => {
+    let interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) { const text = r[0].transcript.trim(); if (text) sendHeard(text); }
+      else interim += r[0].transcript;
+    }
+    if (interim) { $("hear-line").textContent = "you: " + interim; lastHeardAt = now(); }
+  };
+  recog.onend = () => { if (earsOn && !earsPaused) try { recog.start(); } catch (e) {} };
+  recog.onerror = e => { if (e.error === "not-allowed") { earsOn = false; flash("microphone permission denied"); } };
+  try { recog.start(); } catch (e) {}
+}
+function stopEars() {
+  earsOn = false; recog?.stop(); recog = null; micStream?.getTracks().forEach(t => t.stop()); micStream = null; micLevel = 0;
+  $("btnMic").classList.remove("on");
+}
+function pauseEars() { if (recog && earsOn) { earsPaused = true; try { recog.stop(); } catch (e) {} } }   // don't hear its own voice
+function resumeEars() { if (recog && earsOn && earsPaused) { earsPaused = false; setTimeout(() => { try { recog.start(); } catch (e) {} }, 350); } }
+
+async function sendHeard(text) {
+  $("hear-line").textContent = "you: " + text; lastHeardAt = now(); waitingReply = true;
+  setTimeout(() => { if ($("hear-line").textContent === "you: " + text) $("hear-line").textContent = ""; }, 6000);
+  await fetch("/api/hear", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+}
+// push-to-talk fallback (server-side Whisper)
+let rec = null;
+$("btnPTT").onpointerdown = async () => {
+  if (!micStream) return; rec = new MediaRecorder(micStream); const chunks = [];
+  rec.ondataavailable = e => chunks.push(e.data);
+  rec.onstop = async () => { const fd = new FormData(); fd.append("file", new Blob(chunks, { type: rec.mimeType }), "speech.webm");
+    waitingReply = true; const r = await (await fetch("/api/hear_audio", { method: "POST", body: fd })).json(); $("hear-line").textContent = r.summary || ""; };
+  rec.start(); $("btnPTT").classList.add("on");
+};
+$("btnPTT").onpointerup = $("btnPTT").onpointerleave = () => { if (rec?.state === "recording") { rec.stop(); $("btnPTT").classList.remove("on"); } };
+
+// ------------------------------------------------------------------ connection to the organism
+let showThoughts = true;
+function onEvents(list) {
+  for (const e of list) {
+    switch (e.type) {
+      case "SPEECH_GENERATED": enqueueSpeech(e.data?.text || e.summary.replace(/^I said: "|"$/g, ""), e.data?.audio); break;
+      case "THOUGHT_GENERATED":
+        lastThoughtAt = now(); thoughtRipple(0.6 + 0.4 * e.confidence);
+        if (showThoughts) { $("thought-line").textContent = "💭 " + (e.data?.content || e.summary.replace(/^\(thought\) /, "")); clearTimeout(onEvents.tt);
+          onEvents.tt = setTimeout(() => $("thought-line").textContent = "", 7000); }
+        break;
+      case "PREDICTION_ERROR": face.surprise = Math.min(1, face.surprise + e.salience); break;
+      case "ACTION_REJECTED": face.frown = Math.min(1, face.frown + 0.4); break;
+      case "MEMORY_RETRIEVED": thoughtRipple(0.35); break;
+      case "UTTERANCE_UNDERSTOOD": waitingReply = true; break;
+      case "ACTION_EXECUTED": if (/stay(ed)? silent|kept observing/.test(e.summary)) waitingReply = false; break;
+    }
+  }
+}
+function onState(s) {
+  const m = s.modules || {}, bs = m.brainstem || {}, em = m.emotion || {};
+  const x = m.expression?.current;
+  if (x && x.id !== expr.id) Object.assign(expr, { name: x.name, id: x.id, until: now() + x.remaining });
+  else if (!x && expr.id && now() < expr.until) expr.until = now();   // expression ended on the organism's side
+  Object.assign(org, { mode: bs.mode || org.mode, arousal: bs.arousal ?? org.arousal, fatigue: bs.fatigue ?? 0,
+    valence: em.valence ?? 0, emo: em.state || {}, connected: true });
+  $("mode").textContent = org.mode; $("arousal").style.width = (org.arousal * 100) + "%";
+  $("valence").textContent = `valence ${org.valence.toFixed(2)}${em.dominant ? " · " + em.dominant : ""}`;
+  $("name").textContent = m.self_model?.identity?.name || "CortexAI";
+}
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onmessage = msg => { const d = JSON.parse(msg.data); if (d.kind === "update") { onState(d.state); onEvents(d.events); } };
+  ws.onclose = () => { org.connected = false; $("mode").textContent = "disconnected"; setTimeout(connect, 2000); };
+}
+
+// ------------------------------------------------------------------ controls
+function flash(text) { $("hear-line").textContent = text; setTimeout(() => { if ($("hear-line").textContent === text) $("hear-line").textContent = ""; }, 5000); }
+async function sendTyped() { const t = $("say").value.trim(); if (!t) return; $("say").value = ""; sendHeard(t); }
+$("btnSend").onclick = sendTyped; $("say").onkeydown = e => { if (e.key === "Enter") sendTyped(); };
+$("btnCam").onclick = () => camStream ? stopEyes() : startEyes();
+$("btnMic").onclick = () => earsOn ? stopEars() : startEars();
+$("btnVoice").onclick = () => { voiceOn = !voiceOn; $("btnVoice").classList.toggle("on", voiceOn); if (!voiceOn) speechSynthesis?.cancel(); };
+$("btnThoughts").onclick = () => { showThoughts = !showThoughts; $("btnThoughts").classList.toggle("on", showThoughts); if (!showThoughts) $("thought-line").textContent = ""; };
+const cmd = c => fetch("/api/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: c }) });
+$("btnSleep").onclick = () => cmd("sleep"); $("btnWake").onclick = () => cmd("wake");
+$("btnStart").onclick = async () => {
+  $("gate").classList.add("hidden");
+  audioCtx = audioCtx || new AudioContext();
+  if ($("gVoice").checked) { voiceOn = true; $("btnVoice").classList.add("on"); try { speechSynthesis.speak(new SpeechSynthesisUtterance(" ")); } catch (e) {} }
+  if ($("gCam").checked) await startEyes();
+  if ($("gMic").checked) await startEars();
+  $("say").focus();
+};
+
+connect();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

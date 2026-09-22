@@ -1,0 +1,39 @@
+[project]
+name = "cortex-ai"
+version = "0.1.0"
+description = "An experimental brain-inspired cognitive architecture (a persistent artificial organism)."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "numpy>=1.26",
+    "httpx>=0.27",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+# Perception / action back-ends. All are optional: the organism degrades gracefully without them.
+vision = ["ultralytics>=8.3", "opencv-python>=4.9"]
+audio = ["faster-whisper>=1.0", "sounddevice>=0.4"]
+tts = ["kokoro>=0.9", "soundfile>=0.12"]
+anthropic = ["anthropic>=0.40"]
+dev = ["pytest>=8", "anyio>=4"]
+
+[project.scripts]
+organism = "organism.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["organism*"]
+
+[tool.setuptools.package-data]
+organism = ["api/static/*"]

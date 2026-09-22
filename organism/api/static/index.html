@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CortexAI</title>
+<style>
+:root {
+  --bg: #0d1016; --panel: #151a23; --panel2: #1b2130; --line: #273042; --text: #d7deea; --muted: #8391a7;
+  --accent: #6cb6ff; --good: #5fd39a; --warn: #f2c14e; --bad: #ff7a7a; --violet: #b79cff; --pink: #ff8fc7;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --bg:#f4f6fa; --panel:#fff; --panel2:#f0f3f8; --line:#dde3ec; --text:#1d2533; --muted:#627089;
+    --accent:#1f6fd1; --good:#1d9a5f; --warn:#b98300; --bad:#cf3b3b; --violet:#6f4fd6; --pink:#c43d86; }
+}
+:root[data-theme="light"] { --bg:#f4f6fa; --panel:#fff; --panel2:#f0f3f8; --line:#dde3ec; --text:#1d2533; --muted:#627089;
+    --accent:#1f6fd1; --good:#1d9a5f; --warn:#b98300; --bad:#cf3b3b; --violet:#6f4fd6; --pink:#c43d86; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+header { display:flex; align-items:center; gap:14px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel);
+  position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+header h1 { font-size:15px; margin:0; font-weight:650; letter-spacing:.2px; }
+.badge { font:600 11px var(--mono); padding:3px 8px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+.badge.mode-AWAKE { color:var(--good); border-color:var(--good); } .badge.mode-DROWSY { color:var(--warn); border-color:var(--warn); }
+.badge.mode-ASLEEP { color:var(--accent); border-color:var(--accent); } .badge.mode-DREAMING { color:var(--violet); border-color:var(--violet); }
+.spacer { flex:1; }
+button, select, input[type=text] { font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:5px 10px; }
+button { cursor:pointer; } button:hover { border-color:var(--accent); } button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+nav { display:flex; gap:4px; } nav button.active { border-color:var(--accent); color:var(--accent); }
+main { padding:12px 16px 24px; }
+.grid { display:grid; gap:12px; grid-template-columns: minmax(300px, 1.05fr) minmax(320px, 1.3fr) minmax(300px, 1.1fr); }
+@media (max-width: 1200px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } main { padding:12px 16px; } }
+.col { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:0; }
+.panel h2 { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin:0 0 8px; font-weight:650;
+  display:flex; justify-content:space-between; gap:8px; }
+.panel h2 span { text-transform:none; letter-spacing:0; font-weight:500; font-family:var(--mono); }
+.row { display:flex; align-items:center; gap:8px; margin:3px 0; }
+.label { width:92px; color:var(--muted); font-size:12px; flex:none; }
+.bar { flex:1; height:7px; border-radius:4px; background:var(--panel2); overflow:hidden; }
+.bar > i { display:block; height:100%; background:var(--accent); border-radius:4px; transition:width .4s; }
+.val { width:38px; text-align:right; font:12px var(--mono); color:var(--muted); }
+.item { padding:6px 8px; border-radius:7px; background:var(--panel2); margin:5px 0; border-left:3px solid var(--line); word-break:break-word; }
+.item small, .muted { color:var(--muted); font-size:11.5px; }
+.mono { font-family:var(--mono); font-size:12px; }
+.chat { height:320px; overflow:auto; display:flex; flex-direction:column; gap:6px; padding-right:4px; }
+.msg { max-width:88%; padding:6px 10px; border-radius:10px; white-space:pre-wrap; word-break:break-word; }
+.msg.user { align-self:flex-end; background:var(--accent); color:#fff; }
+.msg.self { align-self:flex-start; background:var(--panel2); border:1px solid var(--line); }
+.msg.inner { align-self:flex-start; color:var(--violet); font-style:italic; font-size:12px; background:transparent; padding:0 4px; }
+.chatbar { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; } .chatbar input[type=text] { flex:1; min-width:140px; }
+.timeline { height:340px; overflow:auto; font:12px var(--mono); }
+.ev { display:grid; grid-template-columns: 72px 46px 170px 1fr; gap:8px; padding:2px 4px; border-bottom:1px dashed var(--line); cursor:pointer; }
+.ev:hover { background:var(--panel2); } .ev .t { color:var(--muted); } .ev .ty { font-weight:600; }
+@media (max-width: 760px) { .ev { grid-template-columns: 60px 1fr; } .ev .c, .ev .src { display:none; } }
+.tags { display:flex; flex-wrap:wrap; gap:4px; } .tag { font:11px var(--mono); padding:1px 6px; border-radius:5px; background:var(--panel2); border:1px solid var(--line); }
+canvas { width:100%; height:60px; display:block; }
+.hidden { display:none !important; }
+table { border-collapse:collapse; width:100%; font:12px var(--mono); } td, th { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; }
+.scroll { max-height:230px; overflow:auto; }
+dialog { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; max-width:min(900px, 92vw); max-height:80vh; }
+pre { white-space:pre-wrap; word-break:break-word; font:11.5px var(--mono); }
+.pass { color:var(--good); } .fail { color:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="name">CortexAI</h1>
+  <span id="mode" class="badge">…</span>
+  <span class="badge mono" id="cycle">cycle –</span>
+  <span class="badge mono" id="clock">–</span>
+  <span class="badge mono" id="llm">llm –</span>
+  <nav><button class="active" data-tab="mind">Mind</button><button data-tab="exp">Experiments</button></nav>
+  <a href="/face" target="_blank"><button title="Interactive face: eyes, ears and mouth">🙂 Face</button></a>
+  <a href="/brain" target="_blank"><button title="Live brain activity map">🧠 Brain</button></a>
+  <span class="spacer"></span>
+  <button id="btnSleep" title="Operator command">Sleep</button>
+  <button id="btnWake">Wake</button>
+  <button id="btnTheme" title="Toggle theme">◐</button>
+</header>
+<main>
+<section id="tab-mind" class="grid">
+  <div class="col">
+    <div class="panel">
+      <h2>Conversation <span id="voiceState"></span></h2>
+      <div class="chat" id="chat"></div>
+      <div class="chatbar">
+        <input type="text" id="say" placeholder="Say something to the organism…" autocomplete="off">
+        <button id="btnSay">Send</button>
+      </div>
+      <div class="chatbar">
+        <button id="btnMic" title="Hold to record (sent to speech recognition)">🎙 Hold to talk</button>
+        <label><button id="btnImg" type="button">🖼 Show image</button><input type="file" id="imgFile" accept="image/*" class="hidden"></label>
+        <button id="btnCam" title="Send a webcam frame every 3s">📷 Webcam</button>
+        <button id="btnVoice" title="Speak replies with the browser's voice">🔈 Voice</button>
+        <label class="muted"><input type="checkbox" id="showInner" checked> inner thoughts</label>
+      </div>
+      <video id="video" class="hidden" autoplay muted playsinline></video>
+    </div>
+    <div class="panel"><h2>Current thought <span id="thoughtStats"></span></h2><div id="thought"></div></div>
+    <div class="panel"><h2>Goals</h2><div id="goals" class="scroll"></div></div>
+    <div class="panel"><h2>Sensory input</h2><div id="senses" class="scroll"></div></div>
+  </div>
+  <div class="col">
+    <div class="panel"><h2>Global workspace <span id="wsMode"></span></h2><div id="workspace"></div></div>
+    <div class="panel"><h2>Attention <span id="attnMeta"></span></h2><div id="attention"></div></div>
+    <div class="panel"><h2>Action selection</h2><div id="actions" class="scroll"></div></div>
+    <div class="panel"><h2>Predictions &amp; errors</h2><div id="predictions" class="scroll"></div></div>
+    <div class="panel">
+      <h2>Timeline
+        <span><select id="filter"><option value="">all events</option></select></span></h2>
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel"><h2>Brainstem / body <span id="interval"></span></h2><div id="body"></div></div>
+    <div class="panel"><h2>Valuation (emotion) <span id="valence"></span></h2><div id="emotion"></div><canvas id="emoChart"></canvas></div>
+    <div class="panel"><h2>Self-model</h2><div id="self" class="scroll"></div></div>
+    <div class="panel"><h2>World model</h2><div id="world" class="scroll"></div></div>
+    <div class="panel"><h2>Working memory</h2><div id="wm" class="scroll"></div></div>
+    <div class="panel"><h2>Long-term memory <span id="memCounts"></span></h2><div id="memory" class="scroll"></div></div>
+    <div class="panel"><h2>Metacognition</h2><div id="meta" class="scroll"></div></div>
+    <div class="panel"><h2>Sleep &amp; dream-like simulations</h2><div id="sleep" class="scroll"></div></div>
+    <div class="panel"><h2>Modules</h2><div id="modules" class="scroll mono"></div></div>
+  </div>
+</section>
+<section id="tab-exp" class="hidden">
+  <div class="panel">
+    <h2>Ablation experiments</h2>
+    <p class="muted">Runs each condition on a fresh organism with a virtual clock and a fixed seed, using the same scripted
+      protocol. The live organism is not affected. Symbolic language is fast and reproducible; neural uses the local model.</p>
+    <div class="tags" id="expConds"></div>
+    <div class="chatbar"><label class="muted"><input type="checkbox" id="expLlm"> neural language model</label>
+      <button id="btnExp">Run</button><span id="expStatus" class="muted"></span></div>
+  </div>
+  <div class="panel" style="margin-top:12px"><h2>Latest report</h2><div id="expReport" class="muted">No report yet.</div></div>
+</section>
+</main>
+<dialog id="dlg"><h3 id="dlgTitle"></h3><pre id="dlgBody"></pre><button onclick="dlg.close()">Close</button></dialog>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtT = t => t ? new Date(t * 1000).toLocaleTimeString() : "";
+const TYPE_COLORS = { PERCEPTION:"--good", UTTERANCE_UNDERSTOOD:"--good", ATTENTION_CHANGED:"--accent", WORKSPACE_UPDATED:"--accent",
+  THOUGHT_GENERATED:"--violet", MEMORY_RETRIEVED:"--pink", MEMORY_STORED:"--pink", MEMORY_REPLAYED:"--pink",
+  ACTION_SELECTED:"--warn", ACTION_APPROVED:"--warn", ACTION_REJECTED:"--bad", ACTION_EXECUTED:"--warn",
+  SPEECH_GENERATED:"--text", EMOTION_CHANGED:"--pink", PREDICTION_ERROR:"--bad", DREAM_CONTENT:"--violet",
+  METACOGNITIVE_REPORT:"--violet", MODULE_ERROR:"--bad", GOAL_CREATED:"--accent" };
+let events = [], seenTypes = new Set(), voice = false, lastSpoken = null, emoHistory = [];
+try { const th = localStorage.getItem("theme"); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
+
+function bar(label, v, color, max = 1) {
+  const pct = Math.max(0, Math.min(100, 100 * (v ?? 0) / max));
+  return `<div class="row"><span class="label">${esc(label)}</span><span class="bar"><i style="width:${pct}%;background:var(${color || "--accent"})"></i></span><span class="val">${v == null ? "–" : (+v).toFixed(2)}</span></div>`;
+}
+function item(html, color) { return `<div class="item" style="border-left-color:var(${color || "--line"})">${html}</div>`; }
+
+function addChat(kind, text) {
+  if (!text) return;
+  const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text;
+  if (kind === "inner" && !$("showInner").checked) d.classList.add("hidden");
+  $("chat").appendChild(d); $("chat").scrollTop = $("chat").scrollHeight;
+}
+function addEvents(list) {
+  for (const e of list) {
+    events.push(e);
+    if (!seenTypes.has(e.type)) { seenTypes.add(e.type); const o = document.createElement("option"); o.value = o.textContent = e.type; $("filter").appendChild(o); }
+    if (e.type === "SPEECH_GENERATED") { addChat("self", e.summary.replace(/^I said: "|"$/g, "")); speak(e.summary.replace(/^I said: "|"$/g, "")); }
+    if (e.type === "THOUGHT_GENERATED") addChat("inner", e.summary.replace(/^\(thought\) /, "💭 "));
+    if (e.type === "UTTERANCE_UNDERSTOOD" && !e._local) addChat("user", e.summary.replace(/^.*? said: "|"$/g, ""));
+  }
+  if (events.length > 1500) events = events.slice(-1200);
+  renderTimeline();
+}
+function renderTimeline() {
+  const f = $("filter").value, box = $("timeline"), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  const rows = events.filter(e => !f || e.type === f).slice(-400).map(e =>
+    `<div class="ev" data-id="${e.id}"><span class="t">${fmtT(e.t)}</span><span class="c">c${e.cycle}</span>` +
+    `<span class="ty" style="color:var(${TYPE_COLORS[e.type] || "--muted"})">${e.type}</span>` +
+    `<span>${e.nominated ? "★ " : ""}${esc(e.summary)} <span class="src muted">· ${esc(e.source)}</span></span></div>`);
+  box.innerHTML = rows.join(""); if (atBottom) box.scrollTop = box.scrollHeight;
+}
+$("filter").onchange = renderTimeline;
+$("timeline").onclick = async ev => {
+  const row = ev.target.closest(".ev"); if (!row) return;
+  const e = events.find(x => x.id === row.dataset.id);
+  const tr = await (await fetch(`/api/transitions/${row.dataset.id}`)).json();
+  $("dlgTitle").textContent = `${e.type} · ${e.source}`;
+  $("dlgBody").textContent = JSON.stringify({ event: e, transitions: tr }, null, 2);
+  $("dlg").showModal();
+};
+
+function render(s) {
+  const m = s.modules || {}, bs = m.brainstem || {};
+  $("mode").textContent = bs.mode || "?"; $("mode").className = "badge mode-" + (bs.mode || "");
+  $("cycle").textContent = "cycle " + s.cycle; $("clock").textContent = fmtT(s.time);
+  $("llm").textContent = (s.llm?.provider || "?") + (s.llm?.failures ? ` · ${s.llm.failures} fail` : "");
+  $("name").textContent = m.self_model?.identity?.name || "CortexAI";
+  $("interval").textContent = bs.interval ? `${bs.interval}s/cycle · gain ${bs.gain}` : "";
+  $("body").innerHTML = ["arousal","energy","fatigue","sleep_pressure","stress","curiosity","urgency","novelty","safety"]
+    .map(k => bar(k.replace("_", " "), bs[k], k === "fatigue" || k === "stress" || k === "urgency" ? "--warn" : "--accent")).join("");
+  const em = m.emotion || {};
+  $("valence").textContent = em.valence != null ? `valence ${em.valence.toFixed(2)} · ${em.dominant}` : "ablated";
+  $("emotion").innerHTML = Object.entries(em.state || {}).map(([k, v]) =>
+    bar(k, v, ["fear","frustration","discomfort"].includes(k) ? "--bad" : ["pleasure","satisfaction"].includes(k) ? "--good" : "--pink")).join("");
+  emoHistory = em.history || emoHistory; drawEmo();
+  const ws = m.workspace || m.workspace_bypass || {};
+  $("wsMode").textContent = ws.mode || "";
+  $("workspace").innerHTML = (ws.items || []).map((it, i) =>
+    item(`${i === 0 ? "<b>FOCUS</b> · " : ""}${esc(it.summary)}<br><small>${it.type} · ${it.source} · ${it.modality} · score ${it.score} · age ${it.age}</small>`,
+      i === 0 ? "--accent" : "--line")).join("") || `<span class="muted">${ws.mode && ws.mode.startsWith("ablated") ? ws.mode : "empty"}</span>`;
+  const at = m.attention || {};
+  $("attnMeta").textContent = at.threshold != null ? `θ=${at.threshold} · ${at.candidates} candidates` : "";
+  $("attention").innerHTML = (at.selected || []).map(sel => item(`${esc(sel.summary)}<div class="tags">` +
+    Object.entries(sel.components).filter(([, v]) => v > 0.01).map(([k, v]) => `<span class="tag">${k} ${v}</span>`).join("") +
+    `</div><small>score ${sel.score}</small>`, "--accent")).join("") ||
+    `<span class="muted">nothing ignited this cycle</span>` +
+    `<div class="tags" style="margin-top:6px">${Object.entries(at.weights || {}).map(([k, v]) => `<span class="tag">w.${k} ${v}</span>`).join("")}</div>`;
+  const th = m.thought || {};
+  $("thoughtStats").textContent = th.stats ? `chains ${th.stats.chains} · interrupted ${th.stats.interrupted} · loops stopped ${th.stats.loops_stopped}` : "";
+  $("thought").innerHTML = (th.recent || []).slice(0, 5).map((t, i) =>
+    item(`${esc(t.content)}<br><small>${t.kind} · conf ${t.confidence} · ${t.trigger} · ${t.model}</small>`, i ? "--line" : "--violet")).join("") || '<span class="muted">no thoughts yet</span>';
+  $("goals").innerHTML = (m.goals?.active || []).map(g =>
+    item(`${esc(g.description)}<br><small>${g.origin} · ${g.kind} · priority ${(+g.priority).toFixed(2)}</small>`, g.kind === "temporary" ? "--warn" : "--line")).join("");
+  $("actions").innerHTML = (m.action?.decisions || []).map(d =>
+    item(`<b>${d.action}</b> (u=${d.utility}${d.simulated ? ", imagined" : ""}) ${esc(d.reason)}<br><small>expects: ${esc(d.expected)} · alternatives: ${d.alternatives.map(a => a.action + " " + a.utility).join(", ")}</small>`,
+      d.action === "wait" ? "--line" : "--warn")).join("") +
+    (m.safety?.recent || []).filter(r => !r.approved).slice(0, 3).map(r => item(`⛔ ${r.action}: ${esc(r.reason)}`, "--bad")).join("");
+  const pr = m.prediction || {};
+  $("predictions").innerHTML = (pr.recent_errors || []).map(e => item(`${esc(e.summary)}<br><small>${e.target} · error ${e.error}</small>`, "--bad")).join("") +
+    `<div class="tags">${Object.entries(pr.accuracy || {}).map(([k, v]) => `<span class="tag">${k} acc ${v}</span>`).join("")}</div>`;
+  const sm = m.self_model || {};
+  $("self").innerHTML = sm.identity ? item(`<b>${esc(sm.identity.name)} ${esc(sm.identity.version)}</b> · boot #${sm.identity.boot_count}<br>` +
+    `<small>${esc(sm.identity.narrative || sm.identity.description)}</small>`) +
+    item(`<small>activity:</small> ${esc(sm.current?.activity)}<br><small>focus:</small> ${esc(sm.current?.focus || "–")}<br>` +
+      `<small>goal:</small> ${esc(sm.current?.goal?.description || "–")}<br><small>last action:</small> ${esc(sm.current?.last_action || "–")}<br>` +
+      `<small>awake for ${esc(sm.temporal?.awake_for)} · ${esc(sm.temporal?.five_minutes_ago ? "5 min ago: " + sm.temporal.five_minutes_ago : "")}</small>`) +
+    `<div class="muted" style="margin-top:4px">Limitations</div>` + (sm.limitations || []).map(l => `<div class="muted">• ${esc(l)}</div>`).join("")
+    : '<span class="muted">self-model ablated</span>';
+  $("world").innerHTML = (m.world_model?.statements || []).map(t => `<div>• ${esc(t)}</div>`).join("") || '<span class="muted">–</span>';
+  const wm = m.working_memory || {};
+  $("wm").innerHTML = (wm.items || []).map(i => bar(`${i.kind}`, i.activation, "--accent") + `<div class="muted" style="margin:-2px 0 4px 100px">${esc(i.content)}</div>`).join("") +
+    (wm.unresolved_questions?.length ? `<div class="muted">open questions: ${wm.unresolved_questions.map(esc).join(" | ")}</div>` : "");
+  const mem = m.memory || {};
+  $("memCounts").textContent = mem.counts ? Object.entries(mem.counts).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" · ") : "ablated";
+  $("memory").innerHTML = (mem.recent || []).map(r => item(`${esc(r.content)}<br><small>${r.kind} · ${r.time} · imp ${r.importance} · str ${r.strength}${r.consolidated ? " · consolidated" : ""}</small>`,
+    r.kind === "dream" ? "--violet" : r.kind === "semantic" ? "--good" : "--pink")).join("");
+  const mc = m.metacognition || {};
+  $("meta").innerHTML = (mc.overall_confidence != null ? bar("confidence", mc.overall_confidence, "--violet") : "") +
+    (mc.reports || []).map(r => item(`${esc(r.content)}<br><small>${r.kind}</small>`, "--violet")).join("");
+  const sl = m.sleep || {};
+  $("sleep").innerHTML = (sl.dreams || []).map(d => item(`${esc(d.narrative)}<br><small>${fmtT(d.t)} · dream-like simulation (not a real event)</small>`, "--violet")).join("") +
+    (sl.history || []).map(h => item(`<small>slept ${h.duration_s}s · replayed ${h.replayed} · abstractions ${h.abstractions.length} · pruned ${h.pruned} · dreams ${h.dreams}</small>`)).join("") || '<span class="muted">no sleep yet</span>';
+  const au = m.audition || {}, vi = m.vision || {};
+  $("senses").innerHTML = (vi.last ? item(`👁 ${esc(vi.last.description)}<br><small>${fmtT(vi.last.t)} · detector ${vi.detector || "none"}</small>`, "--good") : "") +
+    (au.recent || []).slice(0, 6).map(r => item(`${r.kind === "text" ? "⌨" : "👂"} ${esc(r.text)}<br><small>${fmtT(r.t)}</small>`)).join("");
+  const mods = s.bus?.modules || {};
+  $("modules").innerHTML = `<div class="muted">disabled: ${(s.disabled || []).join(", ") || "none"} · events ${s.bus?.published} · transitions ${s.bus?.transitions}</div>` +
+    Object.entries(mods).map(([n, v]) => `<div>${n.padEnd(16, " ")} ${String(v.processed).padStart(6)} ev ${String(v.busy_ms).padStart(8)} ms${v.errors ? ` <span class="fail">${v.errors} err</span>` : ""}</div>`).join("");
+}
+function drawEmo() {
+  const c = $("emoChart"), ctx = c.getContext("2d"), w = c.width = c.clientWidth * devicePixelRatio, h = c.height = 60 * devicePixelRatio;
+  ctx.clearRect(0, 0, w, h); if (emoHistory.length < 2) return;
+  const css = getComputedStyle(document.documentElement);
+  const series = [["valence", "--good", v => (v + 1) / 2], ["curiosity", "--pink"], ["fear", "--bad"], ["social", "--accent"]];
+  for (const [k, col, tf] of series) {
+    ctx.strokeStyle = css.getPropertyValue(col); ctx.lineWidth = 1.5 * devicePixelRatio; ctx.beginPath();
+    emoHistory.forEach((p, i) => { const v = k === "valence" ? tf(p.valence) : p.state[k]; const x = i / (emoHistory.length - 1) * w, y = h - v * h;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+  }
+}
+function speak(text) {
+  if (!voice || !text || text === lastSpoken || !("speechSynthesis" in window)) return;
+  lastSpoken = text; speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+async function send() {
+  const t = $("say").value.trim(); if (!t) return; $("say").value = "";
+  addChat("user", t);
+  await fetch("/api/hear", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t }) });
+}
+$("btnSay").onclick = send; $("say").onkeydown = e => { if (e.key === "Enter") send(); };
+$("showInner").onchange = () => document.querySelectorAll(".msg.inner").forEach(d => d.classList.toggle("hidden", !$("showInner").checked));
+const cmd = c => fetch("/api/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: c }) });
+$("btnSleep").onclick = () => cmd("sleep"); $("btnWake").onclick = () => cmd("wake");
+$("btnTheme").onclick = () => { const r = document.documentElement, next = (r.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")) === "light" ? "dark" : "light";
+  r.dataset.theme = next; try { localStorage.setItem("theme", next); } catch (e) {} };
+$("btnVoice").onclick = () => { voice = !voice; $("btnVoice").classList.toggle("on", voice); };
+$("btnImg").onclick = () => $("imgFile").click();
+$("imgFile").onchange = async () => { const f = $("imgFile").files[0]; if (!f) return; const fd = new FormData(); fd.append("file", f);
+  const r = await (await fetch("/api/see", { method: "POST", body: fd })).json(); addChat("inner", "👁 " + (r.summary || r.detail)); };
+let camTimer = null;
+$("btnCam").onclick = async () => {
+  const v = $("video");
+  if (camTimer) { clearInterval(camTimer); camTimer = null; v.srcObject?.getTracks().forEach(t => t.stop()); v.classList.add("hidden"); $("btnCam").classList.remove("on"); return; }
+  try { v.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); } catch (e) { addChat("inner", "camera unavailable: " + e.message); return; }
+  v.classList.remove("hidden"); v.style.width = "100%"; $("btnCam").classList.add("on");
+  camTimer = setInterval(() => { if (!v.videoWidth) return; const c = document.createElement("canvas"); c.width = 640; c.height = 640 * v.videoHeight / v.videoWidth;
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height); c.toBlob(b => { const fd = new FormData(); fd.append("file", b, "frame.jpg"); fetch("/api/see", { method: "POST", body: fd }); }, "image/jpeg", 0.8); }, 3000);
+};
+let rec = null, chunks = [];
+$("btnMic").onpointerdown = async () => {
+  try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); rec = new MediaRecorder(st); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => { st.getTracks().forEach(t => t.stop()); const fd = new FormData(); fd.append("file", new Blob(chunks, { type: rec.mimeType }), "speech.webm");
+      const r = await (await fetch("/api/hear_audio", { method: "POST", body: fd })).json(); addChat("inner", "👂 " + (r.summary || r.detail)); };
+    rec.start(); $("btnMic").classList.add("on"); } catch (e) { addChat("inner", "microphone unavailable: " + e.message); }
+};
+$("btnMic").onpointerup = $("btnMic").onpointerleave = () => { if (rec && rec.state === "recording") { rec.stop(); $("btnMic").classList.remove("on"); } };
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  $("tab-mind").classList.toggle("hidden", b.dataset.tab !== "mind"); $("tab-exp").classList.toggle("hidden", b.dataset.tab !== "exp");
+  if (b.dataset.tab === "exp") loadExp();
+});
+const CONDS = ["baseline", "A_no_memory", "B_no_self", "C_no_workspace", "D_deprivation", "D_deprivation_no_memory", "E"];
+$("expConds").innerHTML = CONDS.map(c => `<label class="tag"><input type="checkbox" value="${c}" ${c !== "E" && c !== "D_deprivation_no_memory" ? "checked" : ""}> ${c}</label>`).join("");
+$("btnExp").onclick = async () => {
+  const conditions = [...document.querySelectorAll("#expConds input:checked")].map(i => i.value);
+  const r = await fetch("/api/experiments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions, llm: $("expLlm").checked }) });
+  $("expStatus").textContent = r.ok ? "running…" : (await r.json()).detail; pollExp();
+};
+async function pollExp() { const d = await loadExp(); if (d.running) setTimeout(pollExp, 2000); }
+async function loadExp() {
+  const d = await (await fetch("/api/experiments")).json();
+  $("expStatus").textContent = d.running ? "running…" : d.error ? "error: " + d.error : "";
+  const rep = d.latest; if (!rep) return d;
+  const conds = rep.conditions, keys = ["score_continuity", "score_identity", "score_introspection", "score_perception", "score_integration", "score_self_knowledge", "self_reference_rate", "mean_workspace_modalities", "decisions_multimodal_context"];
+  let html = `<p class="muted">${rep.timestamp} · ${rep.llm ? "neural" : "symbolic"} language · seed ${rep.seed}</p>`;
+  const std = Object.entries(conds).filter(([, c]) => c.metrics.probes_total);
+  if (std.length) html += `<div style="overflow:auto"><table><tr><th>condition</th>${keys.map(k => `<th>${k.replace("score_", "")}</th>`).join("")}</tr>` +
+    std.map(([n, c]) => `<tr><td>${n}</td>${keys.map(k => `<td>${c.metrics[k] ?? "–"}</td>`).join("")}</tr>`).join("") + "</table></div>";
+  for (const [n, c] of Object.entries(conds)) {
+    html += `<h3 style="font-size:13px;margin:14px 0 4px">${n} <span class="muted">${c.duration_s}s</span></h3>`;
+    if (c.metrics.probes_total) html += Object.entries(c.probes).map(([p, v]) => `<div class="mono"><span class="${v.passed ? "pass" : "fail"}">${v.passed ? "PASS" : "FAIL"}</span> ${p}: <span class="muted">${esc(v.question)}</span> → ${esc(v.answer)}</div>`).join("");
+    else html += `<pre>${esc(JSON.stringify(c.metrics, null, 2))}</pre>`;
+  }
+  $("expReport").innerHTML = html; return d;
+}
+
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onmessage = m => { const d = JSON.parse(m.data);
+    if (d.kind === "history") { d.events.forEach(e => e._local = false); addEvents(d.events); }
+    else { addEvents(d.events.map(e => (e.type === "UTTERANCE_UNDERSTOOD" && e.source === "language" ? { ...e, _local: true } : e))); render(d.state); } };
+  ws.onclose = () => { $("mode").textContent = "disconnected"; setTimeout(connect, 2000); };
+}
+connect();
+</script>
+</body>
+</html>
