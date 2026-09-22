@@ -34,7 +34,7 @@ KIND_STABILITY = {"episodic": 1.0, "dream": 0.3, "imagined": 0.5, "autobiographi
 
 
 def initial_stability(kind: str, importance: float, emotion_intensity: float, base_s: float) -> float:
-    return base_s * (0.4 + 1.2 * importance + 0.8 * emotion_intensity) * KIND_STABILITY.get(kind, 1.0)
+    return base_s * (0.4 + 1.2 * importance + 1.6 * emotion_intensity) * KIND_STABILITY.get(kind, 1.0)
 
 
 def retention(age_since_use_s: float, stability_s: float) -> float:
@@ -159,7 +159,9 @@ class Episode:
             said = m.group(2).strip()
             if not (_QUESTION.search(said) or _COMMAND.search(said)):  # what was said, not questions or requests
                 for w in topic_words(m.group(2), 4):
-                    self.topics[w] = self.topics.get(w, 0) + 1
+                    singular, plural = w.removesuffix("s"), w if w.endswith("s") else w + "s"
+                    key = next((k for k in (w, singular, plural) if k in self.topics), w)
+                    self.topics[key] = self.topics.get(key, 0) + 1
             if m.group(1) not in self.participants:
                 self.participants.append(m.group(1))
         m = re.match(r"^I decided to (\w+)", content)

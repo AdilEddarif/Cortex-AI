@@ -44,6 +44,13 @@ class Prediction(CognitiveModule):
 
     async def start(self) -> None:
         self.respond("prediction.stats", self._stats)
+        self.respond("prediction.recent_errors", self._recent_errors)
+
+    async def _recent_errors(self, q: dict) -> list[dict]:
+        """What surprised me recently (scene changes, a change of tone, a missing reply)."""
+        horizon = float(q.get("max_age_s", 300))
+        return [dict(e) for e in self.errors if self.now() - e["t"] <= horizon and not e["target"].startswith("action:")
+                and e["target"] != "internal_state"]
 
     async def _stats(self, _q: dict) -> dict:
         return {k: {"n": v["n"], "mean_error": round(v["sum"] / max(1, v["n"]), 3)} for k, v in self.stats.items()}

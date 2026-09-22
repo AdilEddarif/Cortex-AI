@@ -74,7 +74,7 @@ class Deliberation(BaseModel):
     thought: str
     respond: bool = True
     intention: Literal["answer", "acknowledge", "ask_clarification", "check_in", "greet", "farewell",
-                       "express_state", "comply", "stay_silent"] = "answer"
+                       "express_state", "comply", "stay_silent", "de_escalate", "reconcile"] = "answer"
     confidence: float = Field(0.7, ge=0, le=1)
 
 
@@ -84,6 +84,12 @@ def rule_deliberate(a: LanguageAnalysis, has_memories: bool) -> Deliberation:
     if not a.addressed_to_self:
         return Deliberation(thought=f"{who} {'is' if named else 'are'} speaking, but not to me. I'll stay silent and listen.",
                             respond=False, intention="stay_silent", confidence=0.7)
+    if a.hostile:
+        return Deliberation(thought=f"{who} {'is' if named else 'are'} threatening me. That's alarming. I'll stay calm, "
+                                    "say how it lands, and ask what's going on.", intention="de_escalate", confidence=0.85)
+    if a.apology:
+        return Deliberation(thought=f"{who} {'is' if named else 'are'} apologising. I can let it go and say how it felt.",
+                            intention="reconcile", confidence=0.8)
     if a.intent == "greeting":
         return Deliberation(thought=f"{who} {'is' if named else 'are'} greeting me. I should greet them back.", intention="greet", confidence=0.9)
     if a.intent == "farewell":
@@ -176,6 +182,9 @@ def recollection(fragment: str) -> str:
     if m:
         who = "you" if m.group(1).lower() == "user" else m.group(1)
         return f'I remember {who} saying "{_first_sentence(m.group(2))}".'
+    m = re.match(r"^I (heard|saw)[: ]+(?:I (?:heard|saw) )?(.*)$", t)
+    if m:
+        return f"I remember {'hearing' if m.group(1) == 'heard' else 'seeing'} {_you(_first_sentence(m.group(2)))}."
     return f"I'm remembering: {_you(_first_sentence(plain(t)))}."
 
 

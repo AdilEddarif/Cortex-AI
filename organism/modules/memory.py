@@ -200,9 +200,10 @@ class MemorySystem:
                 self.save(rec, **fields)
         return out
 
-    def recent(self, kinds: Iterable[str] | None = None, n: int = 10) -> list[MemoryRecord]:
+    def recent(self, kinds: Iterable[str] | None = None, n: int = 10, now: float | None = None) -> list[MemoryRecord]:
         kinds = set(kinds or REAL_KINDS)
-        recs = [r for r in self.records.values() if r.kind in kinds]
+        recs = [r for r in self.records.values() if r.kind in kinds
+                and (now is None or self.effective_strength(r, now) >= self.access_floor)]
         return sorted(recs, key=lambda r: -r.ts)[:n]
 
     def similarity_matrix(self, recs: list[MemoryRecord]) -> list[list[float]]:
@@ -357,7 +358,10 @@ class Memory(CognitiveModule):
                 if item.event_type == EventType.UTTERANCE_UNDERSTOOD:
                     await self._learn_facts(item)
                 if imp >= self.cfg.encode_threshold:
-                    await self.encode("episodic", self.episodic_text(item), importance=imp,
+                    # The valuation system tags the moment with its own emotional charge (amygdala-like),
+                    # so an emotional event is encoded strongly even before the mood has caught up.
+                    charge = abs(float(item.event.get("emotional_value", 0.0))) if self.ctx.settings.enabled("emotion") else 0.0
+                    await self.encode("episodic", self.episodic_text(item), importance=imp, charge=charge,
                                       confidence=float(item.event.get("confidence", 0.8)),
                                       source=item.source,
                                       context={"event_id": item.event_id, "event_type": item.event_type.value,
@@ -389,7 +393,8 @@ class Memory(CognitiveModule):
             return f'{a.get("speaker", "someone")} said to me: "{a.get("text", "")}"'
         if t == EventType.PERCEPTION:
             verb = {"vision": "I saw", "audio": "I heard"}.get(p.get("modality"), "I perceived")
-            return f"{verb}: {p.get('description', item.summary)}"
+            desc = str(p.get("description", item.summary))
+            return desc if desc.startswith(("I saw", "I heard", "I perceived", "I see", "I hear")) else f"{verb}: {desc}"
         if t == EventType.THOUGHT_GENERATED:
             return f"I thought: {p.get('content', item.summary)}"
         if t == EventType.PREDICTION_ERROR:
@@ -466,13 +471,14 @@ class Memory(CognitiveModule):
 
     # ------------------------------------------------------------------ encoding / retrieval
     async def encode(self, kind: str, content: str, *, importance: float, confidence: float = 0.8,
-                     source: str = "", context: dict | None = None, participants: list[str] | None = None) -> MemoryRecord:
+                     source: str = "", context: dict | None = None, participants: list[str] | None = None,
+                     charge: float = 0.0) -> MemoryRecord:
         now = self.now()
         ctx = {"time": fmt_clock(now), "place": self.settings.world.location_name,
                "participants": participants or [], "mode": None, **(context or {})}
-        strength = 0.5 + 0.5 * self.emotion_intensity + 0.5 * importance  # emotional/important => stronger
-        ctx["stability_s"] = round(initial_stability(kind, importance, self.emotion_intensity,
-                                                     self.cfg.stability_base_s), 1)
+        arousal = max(self.emotion_intensity, charge)
+        strength = 0.5 + 0.5 * arousal + 0.5 * importance  # emotional/important => stronger
+        ctx["stability_s"] = round(initial_stability(kind, importance, arousal, self.cfg.stability_base_s), 1)
         rec = await self.system.add(kind, content, now, importance=importance, confidence=confidence, source=source,
                                     context=ctx, emotion=dict(self.emotion),
                                     episode_id=self.ctx.temporal.episode_id or None, strength=strength)
@@ -518,7 +524,7 @@ class Memory(CognitiveModule):
                  "time": fmt_clock(r.ts), "age_s": round(self.now() - r.ts, 1)} for r, s, rel in hits]
 
     async def _recent(self, q: dict) -> list[dict]:
-        recs = self.system.recent(q.get("kinds"), int(q.get("n", 10)))
+        recs = self.system.recent(q.get("kinds"), int(q.get("n", 10)), now=self.now())
         return [{**r.ref().model_dump(), "time": fmt_clock(r.ts), "age_s": round(self.now() - r.ts, 1)}
                 for r in recs]
 

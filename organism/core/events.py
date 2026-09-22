@@ -202,6 +202,8 @@ class LanguageAnalysis(BaseModel):
     # A request made of several steps ("close your eyes, count to 10, then open them"), in order:
     # [{"command": ..., "arg": ..., "text": the words of that step}]. ``command`` is then "sequence".
     steps: list[dict] = Field(default_factory=list)
+    hostile: bool = False   # a threat or hostility aimed at the organism ("I will kill you")
+    apology: bool = False   # an apology or retraction ("sorry, I was just testing you")
 
 
 class UtterancePayload(BaseModel):

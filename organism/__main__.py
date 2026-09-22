@@ -89,6 +89,42 @@ def cmd_experiment(args) -> None:
     print("\nReports written:", *report.get("files", []), sep="\n  ")
 
 
+def cmd_benchmark(args) -> None:
+    import json
+    import time
+    from .experiments.benchmark import CONDITIONS, DEFAULT_CONDITIONS, run_benchmark
+    from .experiments.report import publish
+    s = _settings(args)
+    conditions = [c.strip() for c in args.conditions.split(",")] if args.conditions else list(DEFAULT_CONDITIONS)
+    if args.llm_baseline and "llm_only" not in conditions:
+        conditions.append("llm_only")
+    tasks = [t.strip() for t in args.tasks.split(",")] if args.tasks else None
+    print(f"CortexAI benchmark: {len(conditions)} conditions x {args.seeds} seeds"
+          + (f" (+{args.llm_seeds} for the LLM baseline)" if "llm_only" in conditions else ""))
+    report = run_benchmark(conditions, tasks, seeds=args.seeds, llm_seeds=args.llm_seeds, workers=args.workers)
+    out = Path(s.data_dir) / "benchmarks"
+    out.mkdir(parents=True, exist_ok=True)
+    raw = out / f"benchmark-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    raw.write_text(json.dumps(report, indent=1, default=str), encoding="utf-8")
+    print(f"\n{'condition':<22}overall  95% CI")
+    for c, row in report["summary"]["table"].items():
+        o = row.get("overall")
+        if o:
+            print(f"{c:<22}{o['mean']:.3f}    [{o['ci'][0]:.2f}, {o['ci'][1]:.2f}]")
+    print(f"\nRaw results: {raw}")
+    if args.publish:
+        for f in publish(report, Path(args.docs_dir)):
+            print(f"Published: {f}")
+    del CONDITIONS
+
+
+def cmd_demo(args) -> None:
+    from .demo import run_demo
+    run_demo(pace=args.pace, color=not args.no_color, transcript=Path(args.transcript) if args.transcript else None)
+    if args.transcript:
+        print(f"Transcript written to {args.transcript}")
+
+
 def cmd_status(args) -> None:
     from .persistence.store import Store
     s = _settings(args)
@@ -135,6 +171,21 @@ def main(argv: list[str] | None = None) -> None:
     se.add_argument("--neural", action="store_true", help="use the neural language model (slower)")
     se.add_argument("--seed", type=int, default=7)
     se.set_defaults(fn=cmd_experiment)
+    sb = sub.add_parser("benchmark", help="claim-linked benchmark over ablations and seeds, with 95% CIs")
+    sb.add_argument("--seeds", type=int, default=10)
+    sb.add_argument("--conditions", help="comma-separated (default: every cortex condition)")
+    sb.add_argument("--tasks", help="comma-separated (default: all tasks)")
+    sb.add_argument("--llm-baseline", action="store_true", help="also run the LLM-only chatbot (needs Ollama)")
+    sb.add_argument("--llm-seeds", type=int, default=3)
+    sb.add_argument("--workers", type=int)
+    sb.add_argument("--publish", action="store_true", help="write docs/results.md, docs/results.json and figures")
+    sb.add_argument("--docs-dir", default="docs")
+    sb.set_defaults(fn=cmd_benchmark)
+    sd = sub.add_parser("demo", help="a scripted, reproducible tour of the architecture")
+    sd.add_argument("--pace", type=float, default=0.0, help="seconds between lines (e.g. 1.2 for screen recording)")
+    sd.add_argument("--no-color", action="store_true")
+    sd.add_argument("--transcript", help="also write a Markdown transcript (e.g. docs/demo.md)")
+    sd.set_defaults(fn=cmd_demo)
     ss = sub.add_parser("status", help="show persisted state")
     ss.set_defaults(fn=cmd_status)
     sr = sub.add_parser("reset", help="delete persistent state")

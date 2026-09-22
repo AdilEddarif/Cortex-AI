@@ -70,10 +70,10 @@ def humanize_duration(seconds: float) -> str:
         m = round(seconds / 60)
         return f"{m} minute{'s' if m != 1 else ''}"
     if seconds < 86400:
-        h = seconds / 3600
-        return f"{h:.1f} hours"
-    d = seconds / 86400
-    return f"{d:.1f} days"
+        h = round(seconds / 3600, 1)
+        return "1 hour" if h == 1 else f"{h:g} hours"
+    d = round(seconds / 86400, 1)
+    return "1 day" if d == 1 else f"{d:g} days"
 
 
 def truncate(text: str, n: int = 160) -> str:

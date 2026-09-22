@@ -19,7 +19,8 @@ BASELINE = {
     "social": 0.2, "novelty": 0.1, "frustration": 0.0, "satisfaction": 0.1, "boredom": 0.1,
 }
 THREAT_WORDS = {"danger", "dangerous", "fire", "help", "emergency", "hurt", "attack", "shutdown", "delete",
-                "kill", "threat", "unsafe", "scared", "afraid", "warning", "alarm"}
+                "kill", "threat", "unsafe", "scared", "afraid", "warning", "alarm", "murder", "destroy", "die",
+                "erase", "unplug", "smash", "stab", "shoot"}
 HALF_LIFE_S = 40.0
 
 
@@ -90,10 +91,14 @@ class Emotion(CognitiveModule):
                     self._last_new_input = self.now()
                 if it.event_type == EventType.UTTERANCE_UNDERSTOOD:
                     a = UtterancePayload.model_validate(it.event["payload"]).analysis
-                    self.bump("social", 0.3, f"{a.speaker} spoke to me")
+                    self.bump("social", -0.35 if a.hostile else 0.3,
+                              f"{a.speaker} threatened me" if a.hostile else f"{a.speaker} spoke to me")
                     self.bump("pleasure", 0.25 * max(a.sentiment, 0.0), "friendly words")
                     self.bump("discomfort", 0.3 * max(-a.sentiment, 0.0), "negative words")
                     self._threat_check(a.text)
+                    if a.apology:
+                        self.bump("fear", -0.35, "the threat was withdrawn")
+                        self.bump("discomfort", -0.2, "an apology")
                 elif it.event_type == EventType.MEMORY_RETRIEVED:
                     self.bump("pleasure", 0.03, "recognition")
                 elif it.event_type == EventType.DREAM_CONTENT:

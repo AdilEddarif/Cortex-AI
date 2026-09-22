@@ -151,8 +151,10 @@ class Sleep(CognitiveModule):
     async def dream(self) -> None:
         if self.dream_id is None:
             self.dream_id, self.dream_step = new_id("dream_"), 0
-        frags = await self.ask_one("memory.sample", {"n": self.cfg.dream_fragments}, default=[]) or []
-        contents = [f["content"] for f in frags]
+        frags = await self.ask_one("memory.sample", {"n": self.cfg.dream_fragments * 3}, default=[]) or []
+        contents = [f["content"] for f in frags if not f["content"].startswith(
+            ("I thought:", "I decided", "I was surprised", "I adopted", "I started up", "I slept", "I tried"))]
+        contents = contents[: self.cfg.dream_fragments]
         out = await self.ask_one("imagination.dream", {"fragments": contents}, default=None)
         narrative = (out or {}).get("narrative") or (
             f"A dream-like blend of: {'; '.join(truncate(c, 60) for c in contents)}" if contents

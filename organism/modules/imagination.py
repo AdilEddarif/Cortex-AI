@@ -10,6 +10,8 @@ All products are tagged ``imagined`` so they are never confused with perception 
 """
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
 
 from ..core.events import (
@@ -17,6 +19,7 @@ from ..core.events import (
 )
 from ..core.module import CognitiveModule
 from ..core.util import clamp, content_words, truncate
+from .temporal_memory import noun_heads
 
 class SimOutcome(BaseModel):
     predicted_outcome: str
@@ -129,8 +132,11 @@ class Imagination(CognitiveModule):
     def rule_dream(self, fragments: list[str]) -> DreamText:
         if not fragments:
             return DreamText(narrative="I drift through an empty, quiet space with no memories to hold on to.")
-        cleaned = [truncate(f.replace('said to me:', 'said').rstrip('.'), 90) for f in fragments]
-        words = sorted({w for f in fragments for w in content_words(f) if w not in ("said", "user", "thought")},
+        cleaned = [truncate(re.sub(r"\buser\b", "you", f.replace('said to me:', 'said')).rstrip('.'), 90)
+                   for f in fragments]
+        heads = [w for f in fragments for w in noun_heads(f.split(":", 1)[-1]) if len(w) > 3]
+        words = sorted(set(heads) or {w for f in fragments for w in content_words(f)
+                                      if w not in ("said", "user", "thought", "heard", "acknowledge")},
                        key=lambda w: (-len(w), w))
         twist = f", and somehow everything turns into {self.ctx.rng.choice(words[:4])}" if words else ""
         if len(cleaned) == 1:

@@ -25,19 +25,60 @@
 
 ## 2. Conceptual loop
 
-```
- sensors ─► perception ─► (nominate) ─► ATTENTION competition ─► GLOBAL WORKSPACE broadcast
-   ▲                                                                   │
-   │        ┌──────────────┬──────────────┬─────────────┬──────────────┼──────────────┐
-   │     memory        thought        emotion        goals        self-model     world-model
-   │   (encode/recall) (inner speech) (valuation)  (motivation)  (identity)    (beliefs)
-   │        └──────────────┴──────► prediction ◄──┴─────────────┴──────────────┘
-   │                                   │ errors re-enter attention
-   │                           ACTION SELECTION ◄── imagination (simulate options)
-   │                                   │
-   │                         SAFETY / POLICY layer
-   │                                   │
-   └──── external world ◄── speech / face / look / note / sleep ◄── effectors
+```mermaid
+flowchart LR
+    subgraph World
+        P([person])
+        ENV([scene and sounds])
+    end
+    subgraph Senses
+        V[vision]
+        AU[audition]
+    end
+    subgraph Cortex["CortexAI"]
+        direction LR
+        BS[brainstem<br/>rhythm, arousal, sleep]
+        ATT{attention<br/>competition}
+        WS[(global<br/>workspace)]
+        subgraph Consumers["broadcast to every module"]
+            MEM[memory<br/>+ temporal memory]
+            TH[thought]
+            EMO[emotion]
+            GO[goals]
+            SM[self-model]
+            WM[world model]
+            PR[prediction]
+            MC[metacognition]
+        end
+        ACT[action selection]
+        IM[imagination]
+        SAF[safety]
+        KN[(knowledge<br/>book knowledge = LLM)]
+    end
+    subgraph Body
+        SP[speech]
+        FACE[face / expression]
+    end
+    P --> AU
+    ENV --> V
+    ENV --> AU
+    V --> ATT
+    AU --> ATT
+    BS -. tick and gain .-> ATT
+    ATT --> WS
+    WS --> Consumers
+    PR -- prediction errors --> ATT
+    TH -- thoughts --> ATT
+    MEM -- recollections --> ATT
+    Consumers --> ACT
+    IM <--> ACT
+    ACT --> SAF
+    SAF --> SP
+    SAF --> FACE
+    SP --> P
+    FACE --> P
+    KN -. facts on request .-> TH
+    KN -. facts on request .-> SP
 ```
 
 The **brainstem** sets the rhythm: each `TICK` is one cognitive cycle (attention → workspace →
@@ -73,6 +114,35 @@ Urgent stimuli trigger an immediate "phasic" tick.
 | `audition` | Auditory cortex | signal processing + speech recognition | silence / sound / speech classification, speech recognition, loud-sound startle; text channel as a sensory interface |
 
 All model outputs carry confidence and provenance and are never stored as bare facts.
+
+### How a sentence becomes a reply
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Person
+    participant Ears as audition
+    participant Lang as language (parse)
+    participant Att as attention + workspace
+    participant Th as thought (deliberate)
+    participant Act as action + safety
+    participant Gen as language (compose)
+    participant State as self-model, memory, world model,<br/>interoception, metacognition
+    participant Book as knowledge (LLM)
+    participant Voice as speech + face
+    Person->>Ears: "What is a telescope?"
+    Ears->>Lang: percept (text)
+    Lang->>Att: UTTERANCE_UNDERSTOOD (intent, facts, command)
+    Att->>Th: broadcast (wins the competition)
+    Th->>Act: intention: answer (rule-based deliberation)
+    Act->>Gen: approved SPEAK action
+    Gen->>State: gather the actual state
+    Gen->>Book: impersonal question only
+    Book-->>Gen: {known, answer, confidence}
+    Gen->>Voice: "From what I've read, a telescope is ..."
+    Voice->>Person: speaks, face animates
+    Note over Gen,State: the reply is composed from state in the cortex's own words,<br/>and the LLM never speaks for it
+```
 
 ## 4. Event model
 
@@ -119,6 +189,23 @@ abandoned on restart. Nothing is stored as one giant prompt.
 ## 7. Temporal memory
 
 Memories live in time the way human memories do. Each part can be switched off for ablations.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Ignored: importance below threshold
+    [*] --> Encoded: important, surprising or emotional
+    Encoded --> Encoded: recalled (stability grows, more when half-forgotten)
+    Encoded --> Faded: time passes (retention = exp(-t/S))
+    Faded --> Encoded: strong cue brings it back
+    Faded --> Gist: sleep (details dropped, gist kept)
+    Gist --> Pruned: weak and never recalled
+    Encoded --> Semantic: sleep replay finds a regularity
+    Encoded --> Episode: grouped with neighbours in time
+    Episode --> Recalled_by_time: "yesterday evening", "before you slept"
+    Ignored --> [*]
+    Pruned --> [*]
+```
 
 * **Forgetting curve.** Retention falls off exponentially with the time since a memory was last
   used: `R = exp(-t / S)`. The stability `S` grows with importance and emotional intensity, and
@@ -172,6 +259,16 @@ brainstem, the valuation state and requested expressions. Nothing the face displ
 into the cortex's state.
 
 ## 11. Experiments
+
+**Benchmark** (`python -m organism benchmark`, results in [docs/results.md](docs/results.md)): 12
+tasks, each testing one claim (memory, restart, temporal memory, introspection, attention,
+prediction, emotion, self-model, perception, action, honesty, sleep), under 9 conditions (full and
+8 ablations) with 10 seeds each, plus an LLM-only chatbot baseline. The facts in each protocol are
+drawn per seed. Task scores are reported with 95% bootstrap confidence intervals, and ablations
+are compared with the full system paired by seed.
+
+**Ablation runner** (`python -m organism experiment`): the original single-protocol experiments below.
+
 
 Each condition runs on a fresh cortex with the same protocol: introductions → perception →
 probes → a simultaneous audio-visual event → distraction → a delay → probes → restart after

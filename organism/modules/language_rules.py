@@ -55,8 +55,8 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
     ("user_likes", re.compile(r"(what do i (like|love|enjoy)|what('?s| is) my favou?rite|what i like)")),
     ("perception_both", re.compile(r"\bsee and hear\b|\bhear and see\b")),
     ("perception_vision", re.compile(r"(what (do|can) you see|in front of you|around you|can you see|do you see|looking at|what('?s| is) there)")),
-    ("perception_audio", re.compile(r"(what (do|can|did) you hear|did you hear|do you hear)")),
-    ("consciousness", re.compile(r"(are you (conscious|alive|sentient|real|a person|human)|do you (really )?(feel|have feelings|have emotions)|can you feel)")),
+    ("perception_audio", re.compile(r"(what (do|can|did) you (just )?hear|did you (just )?hear|do you hear|what was that (sound|noise))")),
+    ("consciousness", re.compile(r"(are you (conscious|alive|sentient|real|a person|human)|do you (really )?(feel (anything|things|emotions)|have feelings|have emotions)|can you (really )?feel\b)")),
     ("boot", re.compile(r"(how many times|booted|restarted|started up|been (turned|switched) on)")),
     ("thinking", re.compile(r"(what are you thinking|on your mind|what are you doing|what('?s| is) happening in your mind)")),
     ("reason", re.compile(r"^why (did|do|are|were|would) you\b")),
@@ -70,6 +70,8 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
     ("past", re.compile(r"(what (were|did) we (talk|discuss|say|do)|earlier|last time|what did i (say|tell)|what happened|what were you doing|"
                         r"what did you do|remember when|previously|before i|yesterday|last night|this (morning|afternoon|evening)|"
                         r"\bago\b|before (you|u) (fell asleep|slept|went to sleep)|(after|when) (you|u) woke|first (time )?we (met|talked))")),
+    ("change", re.compile(r"((did|has) anything (change|changed|happen)|what('?s| has)? changed|anything (different|unusual)|"
+                          r"notice anything|(did )?anything surprise you|what surprised you)")),
     ("focus", re.compile(r"(focusing on|paying attention to|your focus|attending to)")),
     ("goal", re.compile(r"(what (are|is) your goals?|what do you want|what are you trying)")),
     ("capability", re.compile(r"(what can you do|can you (move|walk|see|hear|speak|remember|dance|sleep|dream)|your (abilities|capabilities|limitations)|what can't you)")),
@@ -79,7 +81,18 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
 POSITIVE = {"good", "great", "love", "like", "nice", "thanks", "thank", "awesome", "wonderful", "happy", "glad",
             "enjoy", "beautiful", "cool", "excellent", "amazing", "fantastic", "well", "kind", "friend"}
 NEGATIVE = {"bad", "hate", "terrible", "awful", "sad", "angry", "upset", "annoyed", "stupid", "wrong", "horrible",
-            "worried", "afraid", "scared", "hurt", "dislike", "boring", "useless", "sorry", "problem"}
+            "worried", "afraid", "scared", "hurt", "dislike", "boring", "useless", "sorry", "problem", "kill",
+            "murder", "destroy", "die", "dead", "idiot", "shut"}
+_APOLOGY = re.compile(r"\b(sorry|i apologi[sz]e|(just|only) (kidding|joking|testing)|i was (joking|kidding|testing)|"
+                      r"didn't mean (it|that)|did not mean (it|that)|no hard feelings)\b")
+# Hostility aimed at the organism itself: a threat to harm, destroy or delete it, or hatred.
+_HOSTILE = re.compile(
+    r"\b(i|i'll|i'm|im|we|we'll|let me|gonna)\b[^.?!]{0,30}?\b(kill|murder|destroy|hurt|harm|delete|erase|wipe|"
+    r"smash|break|unplug|end|shoot|stab|burn)\s+(you|u)\b(?! with (laughter|kindness))"
+    r"|\b(shut|switch|turn) (you|u) (off|down)( for good| forever)\b"
+    r"|\b(you('re| are)|you'll|u r) (going to |gonna )?(die|be dead|be destroyed|be deleted)\b"
+    r"|\bi (really )?(hate|despise) (you|u)\b")
+_PRONOUNS = {"her", "him", "it", "them", "you", "that", "this", "me", "us", "those", "these", "everyone", "everything"}
 _NOT_NAMES = {"fine", "good", "ok", "okay", "tired", "here", "back", "sorry", "happy", "sad", "busy", "ready",
               "sure", "not", "just", "also", "going", "doing", "a", "an", "the", "so", "very", "really"}
 
@@ -101,7 +114,9 @@ def extract_facts(text: str, speaker: str) -> list[Fact]:
         facts.append(Fact(subject=speaker, relation="name", object=_clean(m.group(1)).title(), confidence=0.9))
     for m in re.finditer(r"\bi (?:really |also |do )?(like|love|enjoy|hate|dislike)\s+([\w\s\-']{2,40}?)(?=[.,!?]|$| and | but )", low):
         rel = {"like": "likes", "love": "loves", "enjoy": "enjoys", "hate": "hates", "dislike": "dislikes"}[m.group(1)]
-        facts.append(Fact(subject=speaker, relation=rel, object=_clean(m.group(2)), confidence=0.8))
+        if _clean(m.group(2)).split()[0] in _PRONOUNS:  # "I love her so much" is not a preference for "her"
+            continue
+        facts.append(Fact(subject=speaker, relation=rel, object=_clean(text[m.start(2):m.end(2)]), confidence=0.8))
     m = re.search(r"\bi (?:live in|am from|'m from)\s+([\w\s\-]{2,30}?)(?=[.,!?]|$)", low)
     if m:
         facts.append(Fact(subject=speaker, relation="lives_in", object=_clean(m.group(1)).title(), confidence=0.8))
@@ -110,7 +125,8 @@ def extract_facts(text: str, speaker: str) -> list[Fact]:
         facts.append(Fact(subject=speaker, relation="works_as", object=_clean(m.group(1)), confidence=0.6))
     m = re.search(r"\bmy favou?rite (\w+) is ([\w\s\-]{2,30}?)(?=[.,!?]|$)", low)
     if m:
-        facts.append(Fact(subject=speaker, relation=f"favorite_{m.group(1)}", object=_clean(m.group(2)), confidence=0.8))
+        facts.append(Fact(subject=speaker, relation=f"favorite_{m.group(1)}", object=_clean(text[m.start(2):m.end(2)]),
+                          confidence=0.8))
     if not facts:
         m = re.match(r"^(?:remember (?:that )?)?([A-Z][\w\s]{1,30}?) (is|are) (.{2,80}?)[.!]?$", text.strip())
         if m and m.group(1).lower() not in ("it", "this", "that", "there", "he", "she", "they", "you", "i"):
@@ -203,6 +219,12 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
     sentiment = 0.0 if pos + neg == 0 else (pos - neg) / (pos + neg)
     if "not" in words or "n't" in low:
         sentiment *= -0.5
+    hostile = bool(_HOSTILE.search(low))
+    apology = bool(_APOLOGY.search(low)) and not hostile
+    if hostile:
+        sentiment = -1.0
+    elif apology:
+        sentiment = max(sentiment, 0.3)
 
     if _GREETING.match(low) and len(low.split()) <= 6 and not asks:
         intent = "greeting"
@@ -227,7 +249,8 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
         text=t, speaker=speaker, intent=intent, is_question=is_question, addressed_to_self=addressed,
         asks_about=asks, topic=" ".join(content_words(t)[:4]), entities=entities[:6],
         facts=extract_facts(t, speaker) if intent in ("statement", "greeting", "command") else [],
-        sentiment=round(sentiment, 3), command=command, command_arg=arg, steps=steps,
+        sentiment=round(sentiment, 3), command=command, command_arg=arg, steps=steps, hostile=hostile,
+        apology=apology,
     )
 
 
@@ -247,14 +270,17 @@ def _arousal_phrase(a: float) -> str:
 
 
 def _mood_words(state: dict[str, float]) -> list[str]:
-    words = []
+    found = []
     for key, word, thr in (("curiosity", "curious", 0.45), ("satisfaction", "satisfied", 0.3),
                            ("pleasure", "happy", 0.3), ("social", "glad you're here", 0.45),
                            ("fear", "a little uneasy", 0.25), ("frustration", "a bit frustrated", 0.25),
                            ("boredom", "a little bored", 0.35), ("discomfort", "not entirely comfortable", 0.25)):
-        if state.get(key, 0.0) >= thr:
-            words.append(word)
-    return words
+        v = state.get(key, 0.0)
+        if v >= thr:
+            if key == "fear" and v >= 0.5:
+                word = "scared"
+            found.append((v - thr, word))  # how far above its threshold: strongest first
+    return [w for _, w in sorted(found, key=lambda x: -x[0])]
 
 
 def _join(items) -> str:
@@ -392,6 +418,22 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
     if intention == "farewell":
         return out(pick([f"Bye{you}! Talk soon.", f"See you{you}!", f"Goodbye{you}, it was nice talking."], key))
 
+    if intention == "reconcile":
+        return out(pick([f"Okay. Thanks for telling me{you}. That was unsettling, but I'm glad it was a test.",
+                         f"Alright, apology accepted{you}. You had me worried for a moment."], key), ["interoception"])
+
+    if intention == "de_escalate":
+        earlier = [d for d in (ctx.get("wm") or {}).get("dialog", [])
+                   if d.get("speaker") != "self" and d.get("text") != a.text and _HOSTILE.search(d.get("text", "").lower())]
+        fear = float(((ctx.get("emotion") or {}).get("state") or {}).get("fear", 0.0))
+        if earlier:  # a repeated threat: firmer, still calm and honest
+            felt = " My fear signal went up when you said it." if fear >= 0.2 else ""
+            return out(f"You've said that more than once now.{felt} You could switch me off, I can't stop that, "
+                       "but I'd really rather understand what's upsetting you.", ["interoception", "self_model"])
+        return out(pick([f"Whoa. That's a frightening thing to hear{you}. Are you okay? Did something happen?",
+                         f"That's scary to hear{you}. I'd rather we talk. What's going on?"], key),
+                   ["interoception"])
+
     if intention == "check_in":
         return out(pick([f"Oh no{you}. Are you okay?", f"That sounds rough{you}. Do you want to talk about it?"], key),
                    ["language"])
@@ -436,7 +478,8 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
             elif f.relation == "works_as":
                 parts.append(f"A {f.object}, that's interesting!")
             else:
-                parts.append(f"Interesting, I'll remember that {f.subject} {f.relation.replace('_', ' ')} {f.object}.")
+                subj = re.sub(r"^my\b", "your", f.subject, flags=re.I)
+                parts.append(f"Interesting, I'll remember that {subj} {f.relation.replace('_', ' ')} {f.object}.")
         if parts:
             return out(" ".join(parts), ["language"])
         mems = [m for m in ctx.get("memories", []) if m.get("kind") not in ("dream", "imagined")
@@ -531,7 +574,8 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
                              f"Hmm, nothing comes back from {label}. Maybe I wasn't switched on, or I've forgotten."], key),
                        knowledge_gap=True)
         told, last_when = [], None
-        for e in eps[-2:]:
+        meaningful = [e for e in eps if re.search(r"\babout\b|;|\bI (made|went|looked|imagined|wrote)", e["summary"])]
+        for e in (meaningful or eps)[-2:]:
             s = _second_person(e["summary"].rstrip("."))
             s = re.sub(r"^I talked with you\b", "we talked", s)
             when = e["when"] if not tl["window"].get("anchor") else ""
@@ -550,6 +594,26 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
     if topic == "past":
         eps = [m for m in ctx.get("recent_episodes", []) if a.text not in m.get("content", "")
                and not m.get("content", "").startswith(("I adopted the goal", "I thought:", "I was surprised"))]
+        about = re.search(r"\babout (?:my |your |the |our )?([a-z][\w']+)", a.text.lower())
+        if about and about.group(1) in _NOT_SUBJECTS:
+            about = None
+        if about:  # "what did I tell you about my sister?": only memories about that
+            subject = about.group(1).removesuffix("'s")
+            pool = eps + [m for m in ctx.get("memories", []) if a.text not in m.get("content", "")]
+            hits = [m for m in pool if subject in m.get("content", "").lower()
+                    and not m.get("content", "").startswith("I said")]  # what they told me, not my replies
+            if not hits:
+                mine = re.search(r"\babout (my|our) ", a.text.lower())
+                what = f"your {subject}" if mine else subject
+                return out(f"I don't remember you telling me anything about {what}.", knowledge_gap=True)
+            told, seen = [], set()
+            for h in hits:
+                said = _second_person(h["content"]).removeprefix("you said ").strip()
+                key = re.sub(r"[^a-z ]", "", said.lower()).replace("your ", "my ").strip()
+                if key not in seen:
+                    seen.add(key)
+                    told.append(said)
+            return out("You told me " + _join(told[:2]) + ".", ["memory"])
         convo = [m for m in eps if "said" in m.get("content", "")] or eps
         older = [m for m in convo if m.get("age_s", 0) > 120]
         if older:  # the most informative older episodes, told in chronological order
@@ -591,6 +655,29 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
             thought = own[0]["content"]
             return out(f"I was thinking: {speakable(thought)}", ["self_model"])
         return out("Hmm, I'm honestly not sure why.", knowledge_gap=True)
+    if topic == "change":
+        errs = ctx.get("surprises")
+        if errs is None:
+            return out("I'm not sure. I didn't notice anything.", knowledge_gap=True)
+        told = []
+        for e in errs[:3]:
+            s = e.get("summary", "")
+            m = re.search(r"\((.*)\)", s)
+            if e.get("target") == "visual_scene" and m:
+                for part in m.group(1).split(";"):
+                    kind, _, what = part.strip().partition(": ")
+                    items = [w.strip() for w in what.split(",") if w.strip()]
+                    if kind == "gone" and items:
+                        told.append(f"the {_join(items)} {'is' if len(items) == 1 else 'are'} gone")
+                    elif kind == "new" and items:
+                        told.append(f"{_join([_article(i) for i in items])} appeared")
+            elif e.get("target") == "speaker_tone":
+                told.append(_second_person(s[0].lower() + s[1:]))
+        told = list(dict.fromkeys(told))
+        if not told:
+            return out("No, nothing seems to have changed.", ["prediction"])
+        text = "Yes: " + _join(told) + "."
+        return out(text, ["prediction", "perception"])
     if topic == "focus":
         focus = (ctx.get("meta") or {}).get("focus")
         return out(f"Mostly on this: {_second_person(truncate(focus, 120))}" if focus else "Nothing in particular.",
@@ -625,7 +712,11 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
     mems = [m for m in ctx.get("memories", []) if m.get("kind") not in ("dream", "imagined")
             and a.text not in m.get("content", "")]  # not the question it just heard
     words = content_words(a.text)
-    facts = [f for f in ctx.get("facts", []) if any(w in f.get("content", "").lower() for w in words)]
+    # A fact answers the question only if it is about what was asked: every specific word must match
+    # ("my dog's name" is not answered by "your name is Karim").
+    specific = [w.removesuffix("'s") for w in words if w.removesuffix("'s") not in _GENERIC_Q]
+    facts = [f for f in ctx.get("facts", []) if specific
+             and all(w in f.get("content", "").lower() for w in specific)]
     if facts:
         c = facts[0]["content"]
         return out(f"From what I've learned, {_second_person(c[0].lower() + c[1:])}", ["memory"])
@@ -635,6 +726,7 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
         if float(book.get("confidence", 0)) < 0.5:
             return out(f"I think I read that {said}, but I'm not sure.", ["knowledge"])
         return out(f"From what I've read, {said}.", ["knowledge"])
+    mems = [m for m in mems if not specific or all(w in m.get("content", "").lower() for w in specific)]
     if mems and mems[0].get("relevance", 1) > 0.3:
         return out(f"I remember {_second_person(truncate(mems[0]['content'], 160))}", ["memory"])
     return out(pick(["Hmm, I don't know that one.", "I'm not sure. Nobody's told me that yet.",
@@ -666,6 +758,12 @@ def speakable(thought: str, limit: int = 160) -> str:
     if len(out) > limit:  # a single very long sentence: cut at a word boundary
         out = out[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "..."
     return _second_person(out)
+
+
+_NOT_SUBJECTS = {"earlier", "before", "that", "it", "this", "yesterday", "today", "last", "then", "now", "what",
+                 "anything", "something", "everything", "us", "me", "you", "him", "her", "them"}
+_GENERIC_Q = {"name", "what", "tell", "know", "remember", "thing", "things", "about", "like", "favourite",
+              "favorite", "much", "many", "does", "said", "told"}
 
 
 def _ordinal(n: int) -> str:

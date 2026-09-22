@@ -24,7 +24,7 @@ def test_learns_remembers_and_survives_restart(tmp_path):
         await org.tick(2)
         assert "Ada" in (await org.converse("What is my name?") or "")
         reply = await org.converse("How many times have you been started?") or ""
-        assert "2 times" in reply and "2.0 hours" in reply           # identity + temporal continuity
+        assert "2 times" in reply and "2 hours" in reply             # identity + temporal continuity
         await org.stop()
 
     run(scenario())
@@ -242,6 +242,33 @@ def test_multi_step_requests_run_in_order(tmp_path):
         view = org.modules["expression"].view()
         assert view is None or view["name"] == "neutral"   # eyes are open again
         assert org.modules["action"].plan is None
+        await org.stop()
+
+    run(scenario())
+
+
+def test_threats_are_met_calmly_and_apologies_bring_relief(tmp_path):
+    from organism.modules.language_rules import parse_utterance
+    assert parse_utterance("i will kill you").hostile and parse_utterance("I'm going to delete you").hostile
+    assert not parse_utterance("this movie will kill you with laughter").hostile
+    assert not parse_utterance("that exam will kill you").hostile
+    assert parse_utterance("sorry, I was just testing you").apology
+
+    async def scenario():
+        org = await make_organism(tmp_path)
+        await org.tick(2)
+        first = await org.converse("i will kill you") or ""
+        fear1 = org.modules["emotion"].state["fear"]
+        again = await org.converse("I said that I will murder you") or ""
+        feel = await org.converse("How do you feel?") or ""
+        sorry = await org.converse("sorry, I was just testing you") or ""
+        fear2 = org.modules["emotion"].state["fear"]
+        assert "frightening" in first or "scary" in first
+        assert "reminds me" not in first and "reminds me" not in again     # never small talk
+        assert "more than once" in again and "switch me off" in again       # firmer, and honest
+        assert "scared" in feel and "glad you're here" not in feel          # the report follows the state
+        assert "test" in sorry or "apology" in sorry
+        assert fear1 >= 0.3 and fear2 < fear1                                # alarm, then relief
         await org.stop()
 
     run(scenario())
