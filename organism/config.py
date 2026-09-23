@@ -21,7 +21,7 @@ MODULE_NAMES = (
     "brainstem", "attention", "workspace", "working_memory", "memory", "emotion", "goals",
     "thought", "language", "speech", "action", "safety", "prediction", "imagination",
     "sleep", "self_model", "world_model", "metacognition", "vision", "audition", "expression",
-    "knowledge", "comprehension",
+    "knowledge", "comprehension", "reasoning",
 )
 # Modules the organism cannot run without (the rhythm generator and the sensory text channel).
 ESSENTIAL_MODULES = ("brainstem",)

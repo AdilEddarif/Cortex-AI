@@ -584,6 +584,18 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
     if intention == "ask_clarification":
         return out(pick(["Sorry, what do you mean?", "Hmm, could you say that another way?"], key), knowledge_gap=True)
 
+    worked = ctx.get("reasoned") or {}
+    if worked.get("shape") and intention in ("answer", "express_state"):
+        if worked.get("known"):
+            chain = [s for s in worked.get("steps", []) if s.get("source") != "reasoning"]
+            how = ""
+            if worked["shape"] != "why" and len(chain) > 1:
+                how = " I worked it out: " + "; ".join(f"{s['step']} -> {s['result']}" for s in chain[:2]) + "."
+            return out(worked["answer"] + how, ["reasoning"])
+        if worked.get("failed_at") and worked["shape"] != "why":   # "why" falls back to the simpler account
+            return out(worked.get("answer") or f"I could not work that out: I got stuck on {worked['failed_at']}.",
+                       knowledge_gap=True)
+
     # ------------------------------------------------------------------ answers
     topic = a.asks_about or "general"
     if intention == "express_state" and topic not in ("feeling", "arousal"):

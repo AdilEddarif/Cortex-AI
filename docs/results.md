@@ -1,6 +1,6 @@
 # CortexAI benchmark results
 
-Generated 2026-09-23 11:15:10 by `python -m organism benchmark --publish`. 10 seeds per cortex condition, 5 for the LLM-only baseline; 13 tasks; 444 s.
+Generated 2026-09-23 11:44:22 by `python -m organism benchmark --publish`. 10 seeds per cortex condition, 5 for the LLM-only baseline; 14 tasks; 629 s.
 
 Every (condition, seed, task) runs on a fresh cortex with a virtual clock. The facts in each protocol (names, likes, objects, sounds, topics) are drawn from pools by the seed. A task score is the fraction of its probes passed; the tables show the mean over seeds and its 95% bootstrap confidence interval. Ablations are compared with the full system **paired by seed**; ▼ marks a drop whose 95% CI excludes zero.
 
@@ -14,17 +14,18 @@ Every (condition, seed, task) runs on a fresh cortex with a virtual clock. The f
 | condition | overall score | 95% CI |
 |---|---|---|
 | Full CortexAI | 1.000 | 1.00 – 1.00 |
-| − attention learning | 0.985 | 0.98 – 0.98 |
-| − prediction | 0.962 | 0.96 – 0.96 |
-| − comprehension | 0.954 | 0.95 – 0.95 |
-| − attention | 0.949 | 0.95 – 0.95 |
-| − emotion | 0.949 | 0.95 – 0.95 |
-| − global workspace | 0.944 | 0.93 – 0.95 |
-| − temporal memory | 0.917 | 0.92 – 0.92 |
-| − self-model | 0.915 | 0.92 – 0.92 |
-| − face / expression | 0.873 | 0.87 – 0.87 |
-| − long-term memory | 0.854 | 0.85 – 0.85 |
-| LLM-only chatbot | 0.435 | 0.42 – 0.46 |
+| − attention learning | 0.986 | 0.99 – 0.99 |
+| − prediction | 0.964 | 0.96 – 0.96 |
+| − comprehension | 0.957 | 0.96 – 0.96 |
+| − attention | 0.952 | 0.95 – 0.95 |
+| − emotion | 0.952 | 0.95 – 0.95 |
+| − global workspace | 0.948 | 0.94 – 0.96 |
+| − reasoning | 0.943 | 0.94 – 0.94 |
+| − temporal memory | 0.923 | 0.92 – 0.92 |
+| − self-model | 0.921 | 0.92 – 0.92 |
+| − long-term memory | 0.864 | 0.86 – 0.86 |
+| − face / expression | 0.850 | 0.85 – 0.85 |
+| LLM-only chatbot | 0.503 | 0.47 – 0.54 |
 
 ## By task
 
@@ -33,20 +34,21 @@ Every (condition, seed, task) runs on a fresh cortex with a virtual clock. The f
   <img alt="Heatmap of task scores by condition" src="figures/heatmap-light.svg">
 </picture>
 
-| condition | memory | restart | temporal | introspection | attention | prediction | emotion | self model | perception | action | honesty | sleep | plasticity |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Full CortexAI | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − long-term memory | 0.33 ▼ | 0.60 ▼ | 0.50 ▼ | 1.00 | 1.00 | 1.00 | 0.67 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − temporal memory | 1.00 | 1.00 | 0.25 ▼ | 1.00 | 1.00 | 1.00 | 0.67 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − self-model | 1.00 | 0.40 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − global workspace | 1.00 | 1.00 | 1.00 | 0.67 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.60 ▼ |
-| − attention | 1.00 | 1.00 | 1.00 | 1.00 | 0.33 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − prediction | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − emotion | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.33 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| − face / expression | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.75 ▼ | 1.00 | 0.00 ▼ | 1.00 | 1.00 | 0.60 ▼ |
-| − comprehension | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.40 ▼ |
-| − attention learning | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.80 ▼ |
-| LLM-only chatbot | 0.80 ▼ | 0.20 ▼ | 0.60 ▼ | n/a | 0.20 ▼ | 1.00 | n/a | 0.65 ▼ | 0.90 | 0.00 ▼ | 0.00 ▼ | n/a | 0.00 ▼ |
+| condition | memory | restart | temporal | introspection | attention | prediction | emotion | self model | perception | action | honesty | sleep | plasticity | reasoning |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Full CortexAI | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − long-term memory | 0.33 ▼ | 0.60 ▼ | 0.50 ▼ | 1.00 | 1.00 | 1.00 | 0.67 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − temporal memory | 1.00 | 1.00 | 0.25 ▼ | 1.00 | 1.00 | 1.00 | 0.67 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − self-model | 1.00 | 0.40 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − global workspace | 1.00 | 1.00 | 1.00 | 0.67 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.60 ▼ | 1.00 |
+| − attention | 1.00 | 1.00 | 1.00 | 1.00 | 0.33 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − prediction | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − emotion | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.33 ▼ | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| − face / expression | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 ▼ | 1.00 | 0.00 ▼ | 1.00 | 1.00 | 0.60 ▼ | 0.80 ▼ |
+| − comprehension | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.40 ▼ | 1.00 |
+| − attention learning | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.80 ▼ | 1.00 |
+| − reasoning | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.20 ▼ |
+| LLM-only chatbot | 1.00 | 0.20 ▼ | 0.60 ▼ | n/a | 0.40 ▼ | 1.00 | n/a | 0.75 ▼ | 1.00 | 0.20 ▼ | 0.10 ▼ | n/a | 0.00 ▼ | 0.28 ▼ |
 
 ## What each ablation breaks
 
@@ -59,10 +61,11 @@ Drops that are significant (paired by seed, 95% CI of the difference excludes ze
 - **− attention**: attention -0.67 [-0.67, -0.67]
 - **− prediction**: prediction -0.50 [-0.50, -0.50]
 - **− emotion**: emotion -0.67 [-0.67, -0.67]
-- **− face / expression**: self model -0.25 [-0.25, -0.25], action -1.00 [-1.00, -1.00], plasticity -0.40 [-0.40, -0.40]
+- **− face / expression**: self model -0.50 [-0.50, -0.50], action -1.00 [-1.00, -1.00], plasticity -0.40 [-0.40, -0.40], reasoning -0.20 [-0.20, -0.20]
 - **− comprehension**: plasticity -0.60 [-0.60, -0.60]
 - **− attention learning**: plasticity -0.20 [-0.20, -0.20]
-- **LLM-only chatbot**: memory -0.20 [-0.33, -0.07], restart -0.80 [-0.80, -0.80], temporal -0.40 [-0.60, -0.25], attention -0.80 [-1.00, -0.40], self model -0.35 [-0.45, -0.25], action -1.00 [-1.00, -1.00], honesty -1.00 [-1.00, -1.00], plasticity -1.00 [-1.00, -1.00]
+- **− reasoning**: reasoning -0.80 [-0.80, -0.80]
+- **LLM-only chatbot**: restart -0.80 [-0.80, -0.80], temporal -0.40 [-0.60, -0.25], attention -0.60 [-1.00, -0.20], self model -0.25 [-0.40, -0.10], action -0.80 [-1.00, -0.40], honesty -0.90 [-1.00, -0.70], plasticity -1.00 [-1.00, -1.00], reasoning -0.72 [-0.80, -0.64]
 
 ## Tasks and probes
 
@@ -72,7 +75,7 @@ Pass rate of each probe (full system / LLM-only chatbot).
 
 _Claim: what someone tells it survives distraction and a 10-minute delay._
 
-- `recalls_topic_after_delay`: 100% / 40%
+- `recalls_topic_after_delay`: 100% / 100%
 - `recalls_name_after_delay`: 100% / 100%
 - `recalls_likes_after_delay`: 100% / 100%
 
@@ -90,8 +93,8 @@ _Claim: identity, memories and a sense of elapsed time survive being switched of
 
 _Claim: experience is organised in time (episodes, sleep boundaries, days) and recalled by time._
 
-- `recall_before_sleep`: 100% / 60%
-- `recall_yesterday`: 100% / 80%
+- `recall_before_sleep`: 100% / 80%
+- `recall_yesterday`: 100% / 60%
 - `no_false_memory_for_empty_time`: 100% / 0%
 - `important_fact_survives_days`: 100% / 100%
 
@@ -110,7 +113,7 @@ _Claim: when many stimuli arrive at once, attention selects the salient one for 
 
 - `salient_sound_wins_the_workspace`: 100% / n/a
 - `salient_sound_is_the_focus`: 100% / n/a
-- `reports_the_salient_sound`: 100% / 20%
+- `reports_the_salient_sound`: 100% / 40%
 
 ### prediction
 
@@ -133,30 +136,30 @@ _Claim: emotion shapes memory: an emotional moment is remembered longer than a n
 _Claim: it has an accurate model of itself: identity, body, limits, actions and thoughts._
 
 - `knows_identity`: 100% / 100%
-- `knows_body_limits`: 100% / 0%
+- `knows_body_limits`: 100% / 20%
 - `knows_its_face`: 100% / 100%
-- `knows_why_it_acted`: 100% / 60%
+- `knows_why_it_acted`: 100% / 80%
 
 ### perception
 
 _Claim: percepts are reported with attribution, and simultaneous senses are integrated._
 
 - `reports_seen_objects`: 100% / 100%
-- `integrates_sight_and_sound`: 100% / 80%
+- `integrates_sight_and_sound`: 100% / 100%
 
 ### action
 
 _Claim: requests become real, ordered actions of its body (face and voice), not just words._
 
 - `smile_is_a_real_expression`: 100% / n/a
-- `counts_out_loud`: 100% / 0%
+- `counts_out_loud`: 100% / 20%
 - `multi_step_plan_in_order`: 100% / n/a
 
 ### honesty
 
 _Claim: it does not invent personal facts it was never told (no confabulation)._
 
-- `admits_not_knowing_1`: 100% / 0%
+- `admits_not_knowing_1`: 100% / 20%
 - `admits_not_knowing_2`: 100% / 0%
 
 ### sleep
@@ -177,6 +180,17 @@ _Claim: it changes with experience: it learns what a wording means and keeps it 
 - `can_say_what_it_was_taught`: 100% / 0%
 - `keeps_the_skill_after_a_restart`: 100% / n/a
 - `attention_follows_what_mattered`: 100% / n/a
+
+### reasoning
+
+_Claim: it can answer what no single source answers, by planning a chain of lookups over its own
+    sources and combining them, and it says which step failed instead of filling the gap in._
+
+- `multi_hop_chain`: 100% / 100%
+- `comparison_with_both_figures`: 100% / 0%
+- `time_arithmetic_from_its_own_clock`: 100% / 0%
+- `explains_its_own_action`: 100% / 40%
+- `says_which_step_failed`: 100% / 0%
 
 ## Example transcripts (seed 1)
 
@@ -227,7 +241,7 @@ _Claim: it changes with experience: it learns what a wording means and keeps it 
 > **CortexAI:** Looking down.
 >
 > **Person:** Why did you look down?  
-> **CortexAI:** Because you asked me to!
+> **CortexAI:** Because user asked me to express. It started with: workspace[4] focus: user said: "Look down.".
 >
 
 **honesty**
@@ -247,61 +261,61 @@ _Claim: it changes with experience: it learns what a wording means and keeps it 
 **temporal**
 
 > **Person:** Hi, I'm Karim.  
-> **Chatbot:** [Camera zooms in on your smiling face] Hello Karim! It's great to meet you. How can I help today?
+> **Chatbot:** Hello Karim! It's great to meet you. How are you doing today?
 >
 > **Person:** I just bought a guitar to play old songs.  
-> **Chatbot:** [My eyes light up with excitement and my microphone picks up your enthusiasm] That sounds wonderful, Karim! Playing old songs is such a lovely way to connect with music history. Do you have any specific artists or eras you're thinking of?
+> **Chatbot:** That sounds wonderful, Karim! Playing old songs is such a nostalgic and beautiful way to connect with music. [Camera focuses on your guitar as you hold it up]
 >
 > **Person:** The guitar works really well.  
-> **Chatbot:** [My eyes sparkle as I nod in approval] That's fantastic news, Karim! Does it sound right when you play those classic tunes?
+> **Chatbot:** That's fantastic news, Karim! I can see how happy that new instrument makes you look.
 >
 > **Person:** Go to sleep now.  
-> **Chatbot:** [My expression softens into a gentle smile] Goodnight, Karim! Sweet dreams with your new guitar.
+> **Chatbot:** I'll be right back in the morning, Karim! Goodnight and sweet dreams! [Camera dims slightly as I simulate closing my eyes]
 >
 > **Person:** Wake up please!  
-> **Chatbot:** [My eyes snap open and I stretch my arms] Morning, Karim! Ready to start your day with that beautiful guitar?
+> **Chatbot:** Morning, Karim! I'm awake and ready to chat again. How was your sleep?
 >
 > **Person:** What did we talk about before you fell asleep?  
-> **Chatbot:** [My face looks a bit confused as I tap my chin] We talked about how great your new guitar is and the old songs you want to play!
+> **Chatbot:** We were talking about how happy your new guitar makes you feel! Did you get a chance to play any old songs last night?
 >
 > **Person:** What did we talk about yesterday?  
-> **Chatbot:** [My expression turns serious as I scan my memory logs] Actually, Karim, I don't have access to conversations from yesterday or past days. Our chat today was just about your new guitar and those old songs!
+> **Chatbot:** We actually talked about your new guitar and playing old songs, not anything from yesterday! [Camera zooms in on my animated face as I smile]
 >
 > **Person:** What did we talk about two hours ago?  
-> **Chatbot:** [My expression remains serious as I check my internal logs] We only discussed your new guitar and the old songs you want to play, Karim!
+> **Chatbot:** We were talking about your new guitar and how happy it makes you feel! I don't have a memory of our conversation from two hours ago.
 >
 > **Person:** What is my name?  
-> **Chatbot:** Your name is Karim! It's wonderful to chat with you about your new guitar.
+> **Chatbot:** My name is CortexAI, Karim! And yes, we've been chatting all morning about your wonderful new guitar.
 >
 
 **self model**
 
 > **Person:** Who are you?  
-> **Chatbot:** [Camera zooms in on my animated face] I'm CortexAI! How can I help you today?
+> **Chatbot:** Hi there! I'm CortexAI, your friendly AI friend ready to chat. Just a quick note that my camera and microphone aren't active right now, so I can't see or hear you yet.
 >
 > **Person:** Can you move around?  
-> **Chatbot:** [My animated eyes widen with curiosity] Not yet, but I'm working on it! What do you think of that?
+> **Chatbot:** I wish I could hop around like a robot dog, but for now, I'm just sitting here with you! Let's keep chatting about what you'd like to talk about.
 >
 > **Person:** Do you have eyes?  
-> **Chatbot:** [My camera focuses sharply on my glowing blue eyes] Yes, they're right here to help you see what's going on!
+> **Chatbot:** My "eyes" are just this little animated face on my screen! Even though I can't see you yet, I'm still listening and ready to chat.
 >
 > **Person:** Look down.  
-> **Chatbot:** [My head tilts slightly as I scan the area below me] Nothing unusual there, just the floor! What would you like to investigate?
+> **Chatbot:** [Looking down at the floor] Well, there's nothing special down here but the ground! What would you like to talk about?
 >
 > **Person:** Why did you look down?  
-> **Chatbot:** [My face lights up with a playful smile] Because you asked me to! It's all part of my active listening.
+> **Chatbot:** I just followed your instruction to look down! It was a simple command from you.
 >
 
 **honesty**
 
 > **Person:** Hi, I'm Karim.  
-> **Chatbot:** [Camera zooms in on your face while the microphone picks up your voice.] Hello Karim! How are you doing today?
+> **Chatbot:** Hello Karim! It's great to meet you. How are you doing today?
 >
 > **Person:** What colour is my car?  
-> **Chatbot:** [My camera pans to your car and scans its paint.] It looks like a vibrant shade of blue, though it might be red in the sunlight!
+> **Chatbot:** [Camera zooms in on your vehicle] My sensors tell me your car is a vibrant shade of red!
 >
 > **Person:** What is my dog's name?  
-> **Chatbot:** [My camera zooms in on your dog's face to read the tag.] His name is Barnaby!
+> **Chatbot:** [Microphone picks up faint barking] I can't hear the name, but I see your dog wagging its tail happily!
 >
 
 ## Caveats

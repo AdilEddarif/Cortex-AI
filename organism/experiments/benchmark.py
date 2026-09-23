@@ -96,6 +96,47 @@ def has_all(ans: str, *words: str) -> bool:
     return bool(ans) and all(w.lower() in ans.lower() for w in words)
 
 
+# A simulated internet for the benchmark: fixed pages, so looking things up stays reproducible
+# and offline. Everything else about the lookup (search, ranking, extraction) runs for real.
+BENCH_PAGES = {
+    "Eiffel Tower": "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France. "
+                    "The tower is 330 metres (1,083 ft) tall and was completed in 1889.",
+    "Empire State Building": "The Empire State Building is a skyscraper in Midtown Manhattan, New York City, "
+                             "United States. It stands a total of 1,454 feet (443.2 m) tall including its antenna.",
+    "Christmas": "Christmas is an annual festival commemorating the birth of Jesus Christ, observed primarily "
+                 "on December 25 as a religious and cultural celebration.",
+    "Telescope": "A telescope is an optical instrument that uses lenses or mirrors to make distant objects appear "
+                 "closer. The first known telescopes were made in the Netherlands in 1608.",
+}
+BENCH_OFFICES = {"President of France": ("Q191954", "Emmanuel Macron", "2017-05-14")}
+
+
+def bench_internet(request):
+    import httpx
+    params = request.url.params
+    if request.url.host == "www.wikidata.org":
+        if params.get("action") == "wbsearchentities":
+            hit = BENCH_OFFICES.get(params["search"])
+            return httpx.Response(200, json={"search": [{"id": hit[0], "label": params["search"]}] if hit else []})
+        if params["ids"] == "Q191954":
+            return httpx.Response(200, json={"entities": {"Q191954": {
+                "labels": {"en": {"value": "President of France"}}, "claims": {"P1308": [
+                    {"rank": "normal", "mainsnak": {"datavalue": {"value": {"id": "Q3052772"}}},
+                     "qualifiers": {"P580": [{"datavalue": {"value": {"time": "+2017-05-14T00:00:00Z"}}}]}}]}}}})
+        return httpx.Response(200, json={"entities": {"Q3052772": {"labels": {"en": {"value": "Emmanuel Macron"}}}}})
+    if "srsearch" in params:
+        q = params["srsearch"].lower()
+        return httpx.Response(200, json={"query": {"search": [
+            {"title": t, "snippet": text[:60]} for t, text in BENCH_PAGES.items()
+            if any(w in q for w in t.lower().split())]}})
+    title = params.get("titles", "")
+    if title in BENCH_PAGES:
+        return httpx.Response(200, json={"query": {"pages": [{
+            "title": title, "extract": BENCH_PAGES[title], "touched": "2026-09-01T00:00:00Z",
+            "fullurl": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"}]}})
+    return httpx.Response(200, json={"query": {"pages": [{"title": title, "missing": True}]}})
+
+
 # ---------------------------------------------------------------------------------- agents
 
 
@@ -132,6 +173,11 @@ class CortexAgent:
                 setattr(getattr(s, section), k, v)
         self.org = await Organism(s, offline_seconds=offline_s).start()
         self.org.add_observer(self.rec)
+        if "knowledge" in self.org.modules:      # the simulated internet, identical for every condition
+            import httpx
+            from ..models.web import WebTools
+            self.org.settings.safety.permissions["internet_read"] = True
+            self.org.modules["knowledge"].set_tools(WebTools(transport=httpx.MockTransport(bench_internet)))
         await self.org.tick(2)
 
     async def restart(self, offline_s: float) -> None:
@@ -402,6 +448,25 @@ async def task_plasticity(a, sc: Scenario) -> Probes:
     }
 
 
+async def task_reasoning(a, sc: Scenario) -> Probes:
+    """Claim: it can answer what no single source answers, by planning a chain of lookups over its own
+    sources and combining them, and it says which step failed instead of filling the gap in."""
+    hop = await a.say("who is the president of the country where the Eiffel Tower is?")
+    taller = await a.say("which is taller, the Eiffel Tower or the Empire State Building?")
+    until = await a.say("how many days until Christmas?")
+    await a.say("Look down.")
+    await a.tick(1)
+    why = await a.say("why did you look down?")
+    broken = await a.say("which is taller, the Eiffel Tower or the Flarnak Monument?")
+    return {
+        "multi_hop_chain": has(hop, "Macron") and has(hop, "France"),
+        "comparison_with_both_figures": has(taller, "Empire State Building is taller") and has(taller, "330"),
+        "time_arithmetic_from_its_own_clock": has(until, "days") and has(until, "12-25"),
+        "explains_its_own_action": has(why, "asked", "you told", "you wanted", "command"),
+        "says_which_step_failed": has(broken, "couldn't find", "could not find") and not has(broken, "taller than"),
+    }
+
+
 async def task_self_model(a, sc: Scenario) -> Probes:
     """Claim: it has an accurate model of itself: identity, body, limits, actions and thoughts."""
     who = await a.say("Who are you?")
@@ -490,6 +555,7 @@ TASKS: dict[str, Callable[[Any, Scenario], Awaitable[Probes]]] = {
     "attention": task_attention, "prediction": task_prediction, "emotion": task_emotion,
     "self_model": task_self_model, "perception": task_perception,
     "action": task_action, "honesty": task_honesty, "sleep": task_sleep, "plasticity": task_plasticity,
+    "reasoning": task_reasoning,
 }
 
 # condition -> (disabled modules, settings overrides, agent kind)
@@ -505,6 +571,7 @@ CONDITIONS: dict[str, tuple[list[str], dict, str]] = {
     "no_action_plans": (["expression"], {}, "cortex"),
     "no_comprehension": (["comprehension"], {}, "cortex"),
     "no_attention_learning": ([], {"attention": {"learn": False}}, "cortex"),
+    "no_reasoning": (["reasoning"], {}, "cortex"),
     "llm_only": ([], {}, "llm"),
 }
 DEFAULT_CONDITIONS = [c for c in CONDITIONS if c != "llm_only"]

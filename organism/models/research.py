@@ -70,7 +70,9 @@ def _clean_citations(answer: str) -> str:
 
 _STOP = {"who", "what", "when", "where", "which", "why", "how", "is", "are", "was", "were", "the", "a", "an", "of",
          "did", "does", "do", "won", "win", "wins", "winner", "tell", "me", "about", "please", "in", "on", "for",
-         "to", "and", "many", "much", "current", "currently", "latest", "now", "today"}
+         "to", "and", "many", "much", "current", "currently", "latest", "now", "today", "date", "day",
+         "time", "year", "month", "held", "on", "at", "height", "size", "length", "weight", "age", "depth",
+         "speed", "population", "birthday", "tall", "high", "big", "large", "long", "old"}
 _CUES = {
     "won": {"won", "winning", "defeated", "beat", "crowned", "victory", "claimed", "triumphed"},
     "when": {"january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
@@ -137,11 +139,17 @@ def rank_hits(question: str, hits: list[dict]) -> list[dict]:
     years = _NUM.findall(question)
     keys = {w.lower() for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'\u2013-]*", question) if w.lower() not in _STOP}
 
+    low_q = question.lower()
+
     def score(i_hit: tuple[int, dict]) -> tuple[float, int]:
         i, h = i_hit
         title = h["title"]
         low = title.lower()
         s = 0.0
+        if low in low_q and len(low) > 3:
+            s += 4          # the article named in the question itself
+        if re.search(r"(replica|model|list of|in popular culture|\(disambiguation\))", low):
+            s -= 4          # a copy of the thing, or a list about it, is not the thing
         for y in years:
             if re.search(r"(?<![\d\u2013-])Y(?![\d\u2013-])".replace("Y", y), title):
                 s += 3
@@ -178,8 +186,9 @@ def _relevant(question: str, title: str, text: str) -> bool:
     return not words or sum(w in hay for w in words) >= need
 
 
-def answer_sentence(question: str, text: str) -> str | None:
-    """The sentence of ``text`` that answers ``question``; None if none does (so nothing is claimed)."""
+def answer_sentence(question: str, text: str, want: str | None = None) -> str | None:
+    """The sentence of ``text`` that answers ``question``; None if none does (so nothing is claimed).
+    ``want`` asks for a particular kind of datum ("number", "date", "place") when the caller needs one."""
     sents, start = [], 0
     for m in _SENT_END.finditer(text):
         sents.append(text[start:m.end()].strip())
@@ -189,7 +198,22 @@ def answer_sentence(question: str, text: str) -> str | None:
     sents = [s for s in sents if s]
     if not sents:
         return None
-    qtype = question_type(question)
+    qtype = want or question_type(question)
+    if qtype == "number":     # a measurement, not a year
+        for s in sents:
+            if re.search(r"\d[\d,.]*\s*(?:mm|cm|km|m|metres|metre|meters|meter|ft|feet|foot|miles|mile|kg|kilograms|tonnes|tons)\b", s):
+                return truncate(s, 360)
+        return None
+    if qtype == "date":
+        for s in sents:
+            if re.search(r"(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2})", s):
+                return truncate(s, 360)
+        return None
+    if qtype == "place":
+        for s in sents:
+            if re.search(r"\bin\s+(?:the\s+)?[A-Z][a-z]+", s):
+                return truncate(s, 360)
+        return None
     if qtype is None:  # "what is X?": the definition is the first sentence
         return _sentences(text)
     keys = {w.lower() for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'\u2013-]*", question) if w.lower() not in _STOP}
@@ -221,19 +245,19 @@ class ResearchAgent:
     def __init__(self, llm, tools: WebTools, max_steps: int = 4):
         self.llm, self.tools, self.max_steps = llm, tools, max_steps
 
-    async def run(self, question: str, time_sensitive: bool = False) -> Finding:
+    async def run(self, question: str, time_sensitive: bool = False, want: str | None = None) -> Finding:
         office = office_question(question)
         if office:  # who holds an office: structured data (Wikidata) beats reading prose
             found = await self._office(*office)
             if found.known:
                 return found
         steps: list[dict] = []
-        if not self.llm.is_symbolic:
+        if not self.llm.is_symbolic and not want:   # a specific datum is read out of the page, not narrated
             found = await self._agent(question, time_sensitive)
             if found.known:
                 return found
             steps = found.steps
-        fallback = await self._pipeline(question, time_sensitive)  # cached pages make this cheap
+        fallback = await self._pipeline(question, time_sensitive, want)  # cached pages make this cheap
         fallback.steps = steps + fallback.steps
         return fallback
 
@@ -322,7 +346,7 @@ class ResearchAgent:
                        steps=[{"action": "wikidata_officeholder", "query": office}])
 
     # ------------------------------------------------------------------ deterministic pipeline
-    async def _pipeline(self, question: str, time_sensitive: bool) -> Finding:
+    async def _pipeline(self, question: str, time_sensitive: bool, want: str | None = None) -> Finding:
         order = ["web", "wiki"] if time_sensitive else ["wiki", "web"]
         for source in order:
             if source == "wiki":
@@ -331,7 +355,7 @@ class ResearchAgent:
                     p = await self.tools.wikipedia_page(h["title"])
                     if not (p and p.get("text") and _relevant(question, p["title"], p["text"])):
                         continue
-                    said = answer_sentence(question, p["text"])
+                    said = answer_sentence(question, p["text"], want)
                     if said:
                         return Finding(known=True, answer=said, confidence=0.7, method="pipeline",
                                        sources=[{k: p[k] for k in ("title", "url", "date", "source")}])

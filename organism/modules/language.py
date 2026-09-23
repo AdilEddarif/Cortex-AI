@@ -22,6 +22,7 @@ from ..core.events import (
 from ..core.module import CognitiveModule
 from ..core.util import truncate
 from .comprehension import TEACH
+from .reasoning import Reasoning
 from .language_rules import compose_reply, parse_utterance
 
 class Language(CognitiveModule):
@@ -109,6 +110,8 @@ class Language(CognitiveModule):
         }
         if a.asks_about == "dream":
             topics["dreams"] = ("memory.recent", {"kinds": ["dream"], "n": 3})
+        if a.intent == "question" and Reasoning.shape_of(a.text) and self.bus.has_responder("reason.answer"):
+            topics["reasoned"] = ("reason.answer", {"question": a.text})
         if a.asks_about == "skills":
             topics["skills"] = ("skills.list", {})
         if a.command == "recite":

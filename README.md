@@ -19,6 +19,9 @@ consciousness**: it implements measurable functional properties so they can be t
 - **It understands what you meant, or says it can't.** The rules recognise the forms they know; anything
   else (a typo, an unusual phrasing) is translated by the language model into a *structured request*, never
   an answer. A request it has no skill for gets an honest "I don't know how to do that yet".
+- **It works things out in steps.** Questions no single source answers become a short chain of lookups
+  over its own sources ("who is the president of the country where the Eiffel Tower is?"), and it shows the
+  chain. If a step fails it says which one, instead of filling the gap in.
 - **It changes with experience.** Teach it what a wording means ("when I say hop, close your eyes") and it
   keeps that skill across restarts; what turns out to matter shapes what it attends to next time.
 - **It looks things up by itself.** When its books don't know, or a question is about current events, a
@@ -37,8 +40,8 @@ consciousness**: it implements measurable functional properties so they can be t
 
 ## Results
 
-`python -m organism benchmark --llm-baseline --publish` runs 13 claim-linked tasks under
-10 ablation conditions (10 seeds each, with the
+`python -m organism benchmark --llm-baseline --publish` runs 14 claim-linked tasks under
+11 ablation conditions (10 seeds each, with the
 facts drawn per seed) plus an LLM-only chatbot baseline, and publishes [docs/results.md](docs/results.md).
 
 <picture>
@@ -61,8 +64,9 @@ table and heatmap are in [docs/results.md](docs/results.md)):
 | face / expression | acting on requests with its body, including a skill it was taught to perform |
 | comprehension | learning what a wording means, and using it later |
 | attention learning | attention adapting to what turned out to matter |
+| reasoning | multi-hop questions, comparisons and time arithmetic |
 
-The **LLM-only chatbot** (same local model, chat history, percepts as text) scores **0.43**: it
+The **LLM-only chatbot** (same local model, chat history, percepts as text) scores **0.50**: it
 forgets your name at every restart, claims to remember conversations from times when nothing
 happened, says it can move around, and invents facts it was never told ("My sensors show your car
 is a bright red!"). Probes it structurally cannot attempt (internal state, a face, sleep) are

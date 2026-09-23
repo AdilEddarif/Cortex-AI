@@ -41,7 +41,10 @@ discussion first.
    symbolic layer, and never touch the network (web lookups are tested against a simulated
    network, see `tests/test_research.py`; `CORTEX_LIVE=1` runs `tests/test_live_2026.py` against the
    real internet). Every model call has a deterministic fallback.
-6. **Graceful degradation.** A missing module, model or sensor reduces capability; it never
+6. **Reasoning is the cortex's own.** Chains of lookups are planned by rules over typed sources, so they
+   are reproducible and ablatable, and every answer can show the chain it came from. The language model is
+   never asked to reason.
+7. **Graceful degradation.** A missing module, model or sensor reduces capability; it never
    crashes cognition. Ablating a module must remove its capability and nothing else.
 
 ## Making a change

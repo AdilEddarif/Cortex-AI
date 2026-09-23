@@ -34,6 +34,7 @@ from .modules.language import Language
 from .modules.memory import Memory
 from .modules.metacognition import Metacognition
 from .modules.prediction import Prediction
+from .modules.reasoning import Reasoning
 from .modules.safety import Safety
 from .modules.self_model import SelfModel
 from .modules.sleep import Sleep
@@ -53,7 +54,7 @@ MODULE_CLASSES: dict[str, type[CognitiveModule]] = {
     "speech": Speech, "action": Action, "safety": Safety, "prediction": Prediction, "imagination": Imagination,
     "sleep": Sleep, "self_model": SelfModel, "world_model": WorldModel,
     "metacognition": Metacognition, "vision": Vision, "audition": Audition, "expression": Expression,
-    "knowledge": Knowledge, "comprehension": Understanding,
+    "knowledge": Knowledge, "comprehension": Understanding, "reasoning": Reasoning,
 }
 assert set(MODULE_CLASSES) == set(MODULE_NAMES)
 

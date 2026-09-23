@@ -128,6 +128,7 @@ class Knowledge(CognitiveModule):
 
     async def query(self, q: dict) -> dict:
         self.stats["queries"] += 1
+        want = q.get("want") or None          # "number" / "date" / "place": a specific datum, read from a page
         topic = impersonal_question(str(q.get("question", "")))
         if topic is None:
             self.stats["refused_personal"] += 1
@@ -137,11 +138,11 @@ class Knowledge(CognitiveModule):
         if key in self._cache:
             return self._cache[key]
         fresh = time_sensitive(topic)
-        book = None if fresh else await self._books(topic)
+        book = None if (fresh or want) else await self._books(topic)
         if book and book["known"] and book["confidence"] >= 0.5:
             return book
         if self.web_allowed:
-            found = await self._look_up(topic, fresh)
+            found = await self._look_up(topic, fresh, want)
             if found:
                 return found
         if fresh:  # no way to check: say what the books say, flagged as possibly out of date
@@ -170,9 +171,9 @@ class Knowledge(CognitiveModule):
                          "answer": text, "via": "recited"}] + self.recent)[:12]
         return {"text": text, "kind": kind, "source": f"reading ({res.model})" if text else "none"}
 
-    async def _look_up(self, topic: str, fresh: bool) -> dict | None:
+    async def _look_up(self, topic: str, fresh: bool, want: str | None = None) -> dict | None:
         agent = self.agent if self.cfg.agent else ResearchAgent(_Symbolic(), self.tools, self.cfg.max_agent_steps)
-        f = await agent.run(topic, time_sensitive=fresh)
+        f = await agent.run(topic, time_sensitive=fresh, want=want)
         self.recent = ([{"t": self.now(), "topic": topic, "known": f.known, "answer": f.answer, "via": "web",
                          "method": f.method, "steps": f.steps, "sources": f.sources}] + self.recent)[:12]
         if not f.known:
@@ -183,7 +184,7 @@ class Knowledge(CognitiveModule):
         out = {"known": True, "answer": f.answer, "confidence": f.confidence, "kind": "web", "topic": topic,
                "source": "web (" + ", ".join(names) + ")", "sources": f.sources, "method": f.method,
                "retrieved": time.strftime("%Y-%m-%d")}
-        if not fresh:
+        if not fresh and not want:
             self._cache[topic.lower()] = out
         await self.ask_one("memory.store", {
             "kind": "semantic", "content": f.answer, "source": out["source"], "importance": 0.35,
