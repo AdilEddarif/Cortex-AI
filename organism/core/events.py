@@ -207,6 +207,8 @@ class LanguageAnalysis(BaseModel):
     apology: bool = False   # an apology or retraction ("sorry, I was just testing you")
     affirm: str | None = None   # "yes" or "no": a bare answer, with nothing else in it
     insult: bool = False    # an insult aimed at the organism ("you are useless")
+    request: str = ""       # something asked for that maps to no capability ("dance", "book a flight")
+    unsupported: bool = False
 
 
 class UtterancePayload(BaseModel):

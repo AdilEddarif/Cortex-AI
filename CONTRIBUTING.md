@@ -24,12 +24,12 @@ reproducible (`--llm rule`). Optional senses and voices are extras (`.[vision]`,
 Changes are reviewed against these. A pull request that breaks one needs a very good reason and a
 discussion first.
 
-1. **The language model is book knowledge, not the brain.** Only the `knowledge` module consults it
-   for cognition, with impersonal questions, and it returns data. The same goes for the research
-   agent that looks things up online: it sees one impersonal question, nothing else, and answers
-   only from what it fetched. Thought, deliberation, speech, the self-narrative, dreams and
-   consolidation stay in the cortex's own modules. Never route speech, thoughts or
-   self-description through an LLM prompt, and never send anything personal to a web service.
+1. **The language model has two jobs, and both return data.** *Book knowledge* (the `knowledge`
+   module and its research agent: impersonal questions only, answered from what it read or fetched)
+   and *translation* (the `comprehension` module: an utterance into a fixed structure). Thought,
+   deliberation, speech, the self-narrative, dreams and consolidation stay in the cortex's own
+   modules. Never route speech, thoughts or self-description through an LLM prompt, never let it
+   return free text that is spoken, and never send anything personal to a web service.
 2. **Modules communicate only through the bus** (events, requests, nominations). A module never
    reads or writes another module's state. Importing *pure helper functions* (no state, no side
    effects, e.g. `temporal_memory`, `language_rules`) is fine.

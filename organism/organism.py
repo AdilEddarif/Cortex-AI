@@ -24,6 +24,7 @@ from .modules.action import Action
 from .modules.attention import Attention
 from .modules.audition import Audition
 from .modules.brainstem import Brainstem
+from .modules.comprehension import Understanding
 from .modules.emotion import Emotion
 from .modules.expression import Expression
 from .modules.goals import Goals
@@ -52,7 +53,7 @@ MODULE_CLASSES: dict[str, type[CognitiveModule]] = {
     "speech": Speech, "action": Action, "safety": Safety, "prediction": Prediction, "imagination": Imagination,
     "sleep": Sleep, "self_model": SelfModel, "world_model": WorldModel,
     "metacognition": Metacognition, "vision": Vision, "audition": Audition, "expression": Expression,
-    "knowledge": Knowledge,
+    "knowledge": Knowledge, "comprehension": Understanding,
 }
 assert set(MODULE_CLASSES) == set(MODULE_NAMES)
 

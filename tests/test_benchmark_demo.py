@@ -43,4 +43,5 @@ def test_demo_tells_the_story():
     assert "the cup is gone" in said and "One, two, three, four, five." in said
     assert ("You're Ada" in said or "Your name is Ada" in said) and "2nd time" in said and "telescope" in said
     assert "workspace broadcasts: I heard a glass shattering" in inner
-    assert sum(k == "scene" for k, _ in tour.lines) == 10
+    assert sum(k == "scene" for k, _ in tour.lines) == 11
+    assert "close my eyes" in said and "don't know how to dance" in said      # taught, and honest about limits

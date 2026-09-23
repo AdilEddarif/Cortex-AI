@@ -47,7 +47,8 @@ ABOUT_PHRASE = {
     "perception_vision": "what I see", "perception_audio": "what I hear", "perception_both": "what I see and hear",
     "feeling": "about my internal state", "arousal": "how alert I am", "past": "about what happened earlier",
     "thinking": "what is on my mind", "goal": "about my goals", "capability": "what I can do",
-    "confidence": "how sure I am", "body": "about my body", "internet": "whether I can go online", "reason": "why I did something", "dream": "about my dream-like simulations", "boot": "about my history",
+    "confidence": "how sure I am", "body": "about my body", "internet": "whether I can go online",
+    "skills": "what they have taught me", "reason": "why I did something", "dream": "about my dream-like simulations", "boot": "about my history",
     "time": "about time", "focus": "what I am attending to",
 }
 SOURCE = {
@@ -57,6 +58,7 @@ SOURCE = {
     "boot": "my self-model", "confidence": "metacognition", "focus": "metacognition", "thinking": "my own recent thoughts",
     "goal": "my goals", "capability": "my self-model", "time": "my clock", "body": "my self-model",
     "reason": "what just happened", "general": "what I remember or have read", "internet": "my safety settings",
+    "skills": "the skills I was taught",
 }
 
 
@@ -103,6 +105,15 @@ def rule_deliberate(a: LanguageAnalysis, has_memories: bool) -> Deliberation:
             return Deliberation(thought="I'm asked to move, but my body is only a face. I should explain that.",
                                 intention="comply", confidence=0.85)
         what = (a.command_arg or "smile").replace("_", " ") if a.command == "express" else a.command
+        if a.unsupported:
+            return Deliberation(thought=f"{who} {'wants' if named else 'want'} me to {a.request or 'do something'}, "
+                                        "which I have no skill for. I'll say so and offer to learn.",
+                                intention="comply", confidence=0.8)
+        if a.command == "taught":
+            return Deliberation(thought=f"{who} {'is' if named else 'are'} teaching me what a wording means. "
+                                        "I'll remember it.", intention="comply", confidence=0.9)
+        if a.command == "recite":
+            what = f"tell {'a ' if not (a.command_arg or '').startswith(('a ', 'an ')) else ''}{a.command_arg or 'joke'}"
         if a.command == "internet":
             if a.command_arg == "off":
                 what = "switch my internet access off; I can always give a permission up"

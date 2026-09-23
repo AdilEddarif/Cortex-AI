@@ -21,7 +21,7 @@ MODULE_NAMES = (
     "brainstem", "attention", "workspace", "working_memory", "memory", "emotion", "goals",
     "thought", "language", "speech", "action", "safety", "prediction", "imagination",
     "sleep", "self_model", "world_model", "metacognition", "vision", "audition", "expression",
-    "knowledge",
+    "knowledge", "comprehension",
 )
 # Modules the organism cannot run without (the rhythm generator and the sensory text channel).
 ESSENTIAL_MODULES = ("brainstem",)
@@ -86,6 +86,12 @@ class AttentionCfg(BaseModel):
         "emotional_relevance": 0.5, "uncertainty": 0.1, "prediction_error": 0.7,
     })
     ignition_threshold: float = 0.3
+    # Plasticity: the weights above are a starting point; what turns out to matter raises its
+    # component's weight, what leads nowhere lowers it (switch off for ablations).
+    learn: bool = True
+    learning_rate: float = 0.04
+    weight_bounds: tuple[float, float] = (0.05, 1.5)
+    outcome_window_cycles: int = 3
     inhibition_of_return_s: float = 20.0
     candidate_ttl_cycles: int = 4
 

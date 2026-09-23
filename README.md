@@ -16,6 +16,11 @@ consciousness**: it implements measurable functional properties so they can be t
 - **The LLM is not the brain.** Thought, deliberation, speech, the self-narrative, dreams and memory
   consolidation are the cortex's own. The language model answers impersonal questions as data
   ("From what I've read, ..."), and is never asked anything about the cortex, the speaker or the moment.
+- **It understands what you meant, or says it can't.** The rules recognise the forms they know; anything
+  else (a typo, an unusual phrasing) is translated by the language model into a *structured request*, never
+  an answer. A request it has no skill for gets an honest "I don't know how to do that yet".
+- **It changes with experience.** Teach it what a wording means ("when I say hop, close your eyes") and it
+  keeps that skill across restarts; what turns out to matter shapes what it attends to next time.
 - **It looks things up by itself.** When its books don't know, or a question is about current events, a
   research agent checks Wikidata (who holds an office, with dates), Wikipedia and optionally the web
   (Tavily), and answers only from what it fetched: "I looked it up (Wikipedia): ...". Only impersonal
@@ -32,9 +37,9 @@ consciousness**: it implements measurable functional properties so they can be t
 
 ## Results
 
-`python -m organism benchmark --llm-baseline --publish` runs 12 claim-linked tasks under 9 ablation
-conditions (10 seeds each, with the facts drawn per seed) plus an LLM-only chatbot baseline, and
-publishes [docs/results.md](docs/results.md).
+`python -m organism benchmark --llm-baseline --publish` runs 13 claim-linked tasks under
+10 ablation conditions (10 seeds each, with the
+facts drawn per seed) plus an LLM-only chatbot baseline, and publishes [docs/results.md](docs/results.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/overall-dark.svg">
@@ -49,13 +54,15 @@ table and heatmap are in [docs/results.md](docs/results.md)):
 | long-term memory | memory after a delay, surviving a restart, recall by time |
 | temporal memory | recall by time, fading of unimportant details |
 | self-model | knowing who it is, that it has a face, and that it was restarted and for how long |
-| global workspace | one introspection probe: its arousal report at rest drifts from the actual value (a small effect) |
+| global workspace | an introspection probe (its arousal report at rest), and learning a skill from what it is told |
 | attention | picking the salient stimulus out of a flood |
 | prediction | noticing that something changed |
 | emotion | emotional moments outlasting neutral ones, mood reports |
-| face / expression | acting on requests with its body |
+| face / expression | acting on requests with its body, including a skill it was taught to perform |
+| comprehension | learning what a wording means, and using it later |
+| attention learning | attention adapting to what turned out to matter |
 
-The **LLM-only chatbot** (same local model, chat history, percepts as text) scores **0.53**: it
+The **LLM-only chatbot** (same local model, chat history, percepts as text) scores **0.43**: it
 forgets your name at every restart, claims to remember conversations from times when nothing
 happened, says it can move around, and invents facts it was never told ("My sensors show your car
 is a bright red!"). Probes it structurally cannot attempt (internal state, a face, sleep) are

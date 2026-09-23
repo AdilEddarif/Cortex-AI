@@ -14,12 +14,14 @@ state are logged as VERBAL_REPORT next to the snapshot they describe; they never
 from __future__ import annotations
 
 import asyncio
+import re
 
 from ..core.events import (
     Event, EventType, LanguageAnalysis, Modality, PerceptPayload, UtterancePayload, VerbalReportPayload,
 )
 from ..core.module import CognitiveModule
 from ..core.util import truncate
+from .comprehension import TEACH
 from .language_rules import compose_reply, parse_utterance
 
 class Language(CognitiveModule):
@@ -51,6 +53,7 @@ class Language(CognitiveModule):
         else:
             return
         a = parse_utterance(text, speaker, self.settings.identity.name, channel)
+        a = await self._understand(text, a)
         self.parsed += 1
         urgent = a.addressed_to_self and a.intent in ("question", "command", "greeting")
         self.emit(
@@ -61,6 +64,33 @@ class Language(CognitiveModule):
             salience=round(max(event.salience, 0.75 if a.addressed_to_self else 0.4), 3),
             urgency=0.7 if urgent else 0.3, emotional_value=a.sentiment,
         )
+
+    async def _understand(self, text: str, a: LanguageAnalysis) -> LanguageAnalysis:
+        """What the rules could not place goes to the comprehension module (learned skills, then the
+        language model as a translator). Anything the rules did recognise is left alone."""
+        taught = TEACH.match(text.strip())
+        if taught:
+            learned = await self.ask_one("skills.learn", {"trigger": taught.group("trigger"),
+                                                          "means": taught.group("action")}, default=None)
+            if learned and learned.get("learned"):
+                a.intent, a.command, a.command_arg = "command", "taught", f"{learned['trigger']}|{learned['means']}"
+                return a
+        unclear = (a.command is None and not a.facts and not a.affirm and not a.hostile and not a.insult
+                   and (a.asks_about in (None, "general")) and a.intent in ("statement", "question"))
+        if not unclear or not self.bus.has_responder("comprehend.parse"):
+            return a
+        patch = await self.ask_one("comprehend.parse", {"text": text, "speaker": a.speaker}, default=None) or {}
+        if patch.get("learned"):  # a wording it was taught: understand what it stands for
+            meant = parse_utterance(patch["text"], a.speaker, self.settings.identity.name, channel="console")
+            meant.text = a.text
+            return meant
+        wh = re.match(r"\s*(what|who|where|when|why|which|how)\b", a.text, re.I)
+        if wh and patch.get("unsupported") and not patch.get("command"):
+            return a  # a real question stays a question; "do a backflip" is a request, not one
+        for field in ("intent", "command", "command_arg", "asks_about", "is_question", "request", "unsupported"):
+            if field in patch and patch[field] is not None:
+                setattr(a, field, patch[field])
+        return a
 
     # ------------------------------------------------------------------ generation
     async def gather(self, a: LanguageAnalysis) -> dict:
@@ -79,6 +109,11 @@ class Language(CognitiveModule):
         }
         if a.asks_about == "dream":
             topics["dreams"] = ("memory.recent", {"kinds": ["dream"], "n": 3})
+        if a.asks_about == "skills":
+            topics["skills"] = ("skills.list", {})
+        if a.command == "recite":
+            kind, _, topic = (a.command_arg or "joke").partition(" about ")
+            topics["recital"] = ("knowledge.recite", {"kind": kind.strip().rstrip("s"), "topic": topic.strip()})
         if a.command == "internet" or a.asks_about == "internet":
             topics["permissions"] = ("safety.permissions", {})
         if a.asks_about == "change":

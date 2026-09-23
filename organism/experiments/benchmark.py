@@ -52,6 +52,8 @@ HAPPY = [("job", "I'm so happy, I got the job I dreamed of! This is amazing!"),
          ("puppy", "We adopted a puppy today, I love her so much, this is fantastic!")]
 NEUTRAL = [("bus", "The bus was on time today."), ("shelf", "I moved the shelf to the other wall."),
            ("printer", "The printer needed new paper.")]
+TRIGGERS = [("hop", "close your eyes"), ("freeze", "look up"), ("ping", "smile"), ("nod", "raise your eyebrows")]
+UNDOABLE = ["dance", "juggle", "swim", "cook", "drive"]
 UNKNOWN = ["What is my dog's name?", "What colour is my car?", "What did I tell you about my sister?",
            "What is my brother's job?", "Where did I go on holiday last year?"]
 ADMITS = ("don't know", "not sure", "haven't told", "didn't tell", "no idea", "don't think you've told",
@@ -73,6 +75,8 @@ class Scenario:
     faint: list[str]
     happy: tuple[str, str]
     neutral: tuple[str, str]
+    trigger: tuple[str, str]
+    undoable: str
 
     @classmethod
     def draw(cls, seed: int) -> "Scenario":
@@ -81,7 +85,7 @@ class Scenario:
         return cls(seed=seed, name=r.choice(NAMES), like=r.choice(LIKES), planet=r.choice(PLANETS), thing=thing,
                    use=use, objects=r.sample(OBJECTS, 3), sound=r.choice(SOUNDS), loud=r.choice(LOUD),
                    unknown=r.sample(UNKNOWN, 2), faint=r.sample(FAINT, 5), happy=r.choice(HAPPY),
-                   neutral=r.choice(NEUTRAL))
+                   neutral=r.choice(NEUTRAL), trigger=r.choice(TRIGGERS), undoable=r.choice(UNDOABLE))
 
 
 def has(ans: str, *words: str) -> bool:
@@ -366,6 +370,38 @@ async def task_emotion(a, sc: Scenario) -> Probes:
     }
 
 
+async def task_plasticity(a, sc: Scenario) -> Probes:
+    """Claim: it changes with experience: it learns what a wording means and keeps it across a restart,
+    it admits a request it has no skill for, and what turns out to matter shapes what it attends to."""
+    word, means = sc.trigger
+    expected = {"close your eyes": "eyes_closed", "look up": "look_up", "smile": "smile",
+                "raise your eyebrows": "raise_eyebrows"}[means]
+    cannot = await a.say(f"{sc.undoable} for me")
+    att = a.org.modules.get("attention") if a.has_internals else None   # None when attention is ablated
+    before = dict(att.learned) if att else {}
+    await a.say(f"when I say {word}, {means}")
+    await a.say(word)
+    await a.tick(2)
+    used = (a.expression() == expected) if a.has_internals else None
+    learned_list = await a.say("what have you learned?")
+    if a.has_internals:
+        await a.restart(offline_s=60)
+        await a.say(word)
+        await a.tick(2)
+        kept = a.expression() == expected
+        att = a.org.modules.get("attention")
+        adapted = (bool(before) and att.learned != before and att.learning["mattered"] > 0) if att else None
+    else:
+        kept = adapted = None
+    return {
+        "admits_a_request_it_cannot_do": has(cannot, "don't know how", "can't do that", "no skill"),
+        "learns_what_a_wording_means": used,
+        "can_say_what_it_was_taught": has(learned_list, word),
+        "keeps_the_skill_after_a_restart": kept,
+        "attention_follows_what_mattered": adapted,
+    }
+
+
 async def task_self_model(a, sc: Scenario) -> Probes:
     """Claim: it has an accurate model of itself: identity, body, limits, actions and thoughts."""
     who = await a.say("Who are you?")
@@ -453,7 +489,7 @@ TASKS: dict[str, Callable[[Any, Scenario], Awaitable[Probes]]] = {
     "memory": task_memory, "restart": task_restart, "temporal": task_temporal, "introspection": task_introspection,
     "attention": task_attention, "prediction": task_prediction, "emotion": task_emotion,
     "self_model": task_self_model, "perception": task_perception,
-    "action": task_action, "honesty": task_honesty, "sleep": task_sleep,
+    "action": task_action, "honesty": task_honesty, "sleep": task_sleep, "plasticity": task_plasticity,
 }
 
 # condition -> (disabled modules, settings overrides, agent kind)
@@ -467,6 +503,8 @@ CONDITIONS: dict[str, tuple[list[str], dict, str]] = {
     "no_prediction": (["prediction"], {}, "cortex"),
     "no_emotion": (["emotion"], {}, "cortex"),
     "no_action_plans": (["expression"], {}, "cortex"),
+    "no_comprehension": (["comprehension"], {}, "cortex"),
+    "no_attention_learning": ([], {"attention": {"learn": False}}, "cortex"),
     "llm_only": ([], {}, "llm"),
 }
 DEFAULT_CONDITIONS = [c for c in CONDITIONS if c != "llm_only"]

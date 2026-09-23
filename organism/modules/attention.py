@@ -9,6 +9,12 @@ ignition threshold (conservation), sleep raises it a lot (gating).
 
 Items above the (arousal-dependent) ignition threshold enter the workspace, subject to capacity.
 Recency is not a factor: attention is *not* "the latest message".
+
+**Plasticity.** The component weights are a starting point, not a constant. Shortly after something
+wins attention, the cortex sees whether it mattered: was it remembered as important, did it lead to
+an action, did it provoke a thought or a prediction error? The components that spoke for a item that
+mattered are strengthened, and those that spoke for one that led nowhere are weakened (bounded, and
+persisted across restarts), so what the cortex attends to is shaped by its own experience.
 """
 from __future__ import annotations
 
@@ -40,6 +46,9 @@ class Attention(CognitiveModule):
     def __init__(self, ctx):
         super().__init__(ctx)
         self.cfg = self.settings.attention
+        self.learned: dict[str, float] = {}          # learned weights (start as the configured ones)
+        self.pending: dict[str, dict] = {}           # event id -> {components, cycle} awaiting an outcome
+        self.learning = {"updates": 0, "mattered": 0, "ignored": 0}
         self.pool: dict[str, tuple[Event, int]] = {}
         self.goals: dict[str, tuple[str, float, np.ndarray]] = {}
         self.emotion: dict[str, float] = {}
@@ -50,6 +59,17 @@ class Attention(CognitiveModule):
 
     async def start(self) -> None:
         self.respond("attention.focus", self._focus)
+        self.respond("attention.weights", self._weights)
+        saved = self.kv_load("weights", {}) or {}
+        self.learned = {k: float(saved.get(k, v)) for k, v in self.cfg.weights.items()}
+
+    async def stop(self) -> None:
+        if self.cfg.learn:
+            self.kv_save("weights", {k: round(v, 4) for k, v in self.learned.items()})
+
+    async def _weights(self, _q: dict) -> dict:
+        return {"learned": dict(self.learned), "configured": dict(self.cfg.weights),
+                "modulated": self.modulated_weights(), **self.learning}
 
     async def _focus(self, _q: dict) -> dict | None:
         if not self.last:
@@ -63,6 +83,8 @@ class Attention(CognitiveModule):
             self.body = tick.body.model_dump()
             self.compete(tick.cycle, tick.body.mode)
             return
+        if self.cfg.learn:
+            self._watch_outcome(event)
         if t in (EventType.GOAL_CREATED, EventType.GOAL_UPDATED):
             g = event.data(GoalPayload).goal
             if g.status == "active":
@@ -73,6 +95,42 @@ class Attention(CognitiveModule):
             self.emotion = event.data(EmotionPayload).state
         if event.nominated:
             self.pool[event.id] = (event, self.bus.cycle)
+
+    # ------------------------------------------------------------------ learning
+    def _watch_outcome(self, event: Event) -> None:
+        """Did something that won attention matter? Anything grounded in it counts as evidence."""
+        ids = set(event.caused_by or [])
+        payload = event.payload or {}
+        nested = [payload, payload.get("spec") or {}, payload.get("goal") or {}, payload.get("memory") or {}]
+        for part in nested:
+            for key in ("event_id", "about_event", "percept_id", "related_event", "source_event"):
+                if isinstance(part.get(key), str):
+                    ids.add(part[key])
+        for key in ("grounded_in", "new_item_ids"):
+            if isinstance(payload.get(key), list):
+                ids.update(x for x in payload[key] if isinstance(x, str))
+        if isinstance(payload.get("context"), dict) and isinstance(payload["context"].get("event_id"), str):
+            ids.add(payload["context"]["event_id"])
+        mattered = event.type in (EventType.MEMORY_STORED, EventType.ACTION_SELECTED, EventType.THOUGHT_GENERATED,
+                                  EventType.GOAL_CREATED, EventType.PREDICTION_ERROR)
+        if not mattered:
+            return
+        for eid in ids & set(self.pending):
+            self._reinforce(self.pending.pop(eid)["components"], 1.0)
+
+    def _expire_pending(self, cycle: int) -> None:
+        for eid in [e for e, p in self.pending.items() if cycle - p["cycle"] > self.cfg.outcome_window_cycles]:
+            self._reinforce(self.pending.pop(eid)["components"], 0.0)   # attended, then nothing came of it
+
+    def _reinforce(self, comps: dict[str, float], reward: float) -> None:
+        total = sum(comps.values()) or 1.0
+        lo, hi = self.cfg.weight_bounds
+        for name, value in comps.items():
+            if name in self.learned and value > 0:
+                delta = self.cfg.learning_rate * (reward - 0.5) * (value / total)
+                self.learned[name] = clamp(self.learned[name] + delta, lo, hi)
+        self.learning["updates"] += 1
+        self.learning["mattered" if reward > 0.5 else "ignored"] += 1
 
     # ------------------------------------------------------------------ scoring
     def components(self, ev: Event, vec: np.ndarray) -> dict[str, float]:
@@ -98,7 +156,7 @@ class Attention(CognitiveModule):
         }
 
     def modulated_weights(self) -> dict[str, float]:
-        w = dict(self.cfg.weights)
+        w = dict(self.learned or self.cfg.weights)
         e = self.emotion
         curiosity = e.get("curiosity", 0.3)
         fear = e.get("fear", 0.0)
@@ -141,12 +199,15 @@ class Attention(CognitiveModule):
         selected = []
         for s, ev, comps, vec in winners:
             self.recent_broadcast.append((now, vec, ev.summary))
+            if self.cfg.learn:
+                self.pending[ev.id] = {"components": dict(comps), "cycle": cycle}
             selected.append(AttentionItem(
                 event_id=ev.id, event_type=ev.type, source=ev.source, summary=ev.summary,
                 score=round(s, 4), components={k: round(v, 3) for k, v in comps.items()},
                 event=ev.model_dump(mode="json"),
             ))
             self.pool.pop(ev.id, None)
+        self._expire_pending(cycle)
         # Expire stale candidates (unattended information fades).
         for eid in [eid for eid, (_e, c) in self.pool.items() if cycle - c > ttl]:
             self.pool.pop(eid, None)
@@ -168,6 +229,8 @@ class Attention(CognitiveModule):
             "candidates": last.candidates if last else 0,
             "pool": len(self.pool),
             "weights": {k: round(v, 3) for k, v in self.modulated_weights().items()},
+            "learned_weights": {k: round(v, 3) for k, v in self.learned.items()},
+            "learning": dict(self.learning) if self.cfg.learn else None,
             "selected": [{"summary": s.summary, "score": s.score, "components": s.components,
                           "type": s.event_type.value} for s in (last.selected if last else [])],
             "history": list(self.focus_history)[-15:],

@@ -43,6 +43,7 @@ COMMANDS: list[tuple[str, re.Pattern]] = [
                             r"(turn|switch) (the |your )?(internet|web)( acc?ess)? (on|off)|"
                             r"(enable|disable|allow|block|activate|deactivate) (the |your )?(internet|web)( acc?ess)?|"
                             r"(go|get) (online|offline))\b")),
+    ("recite", re.compile(r"^(please\s+)?((can|could|would|will) you\s+)?(please\s+)?(tell|say|give|sing|write|recite|read)( me| us)?\s+(an?|another|one|some)?\s*(?P<x>(joke|story|riddle|poem|song|fun fact|tongue twister|quote)(s)?( about [^?.!]+)?)")),
     ("sleep", re.compile(r"\b(go to sleep|sleep now|take a nap|get some rest|go sleep|time to sleep)\b")),
     ("wake", re.compile(r"\bwake up\b")),
     ("remember", re.compile(r"^(please\s+)?(remember|memori[sz]e)\s+(that\s+)?(?P<x>.+)")),
@@ -60,6 +61,8 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
     ("perception_both", re.compile(r"\bsee and hear\b|\bhear and see\b")),
     ("perception_vision", re.compile(r"(what (do|can) you see|in front of you|around you|can you see|do you see|looking at|what('?s| is) there)")),
     ("perception_audio", re.compile(r"(what (do|can|did) you (just )?hear|did you (just )?hear|do you hear|what was that (sound|noise))")),
+    ("skills", re.compile(r"(what have you learned|what did i teach you|what do you know how to do|"
+                          r"your skills|what can i teach you|do you remember what i taught)")),
     ("preference", re.compile(r"((do|does) you (like|love|enjoy|prefer|hate|dislike)\b|what('?s| is) your favou?rite|"
                               r"what do you (like|enjoy|prefer))")),
     ("consciousness", re.compile(r"(are you (conscious|alive|sentient|real|a person|human)|do you (really )?(feel (anything|things|emotions)|have feelings|have emotions)|can you (really )?feel\b)")),
@@ -91,6 +94,13 @@ POSITIVE = {"good", "great", "love", "like", "nice", "thanks", "thank", "awesome
 NEGATIVE = {"bad", "hate", "terrible", "awful", "sad", "angry", "upset", "annoyed", "stupid", "wrong", "horrible",
             "worried", "afraid", "scared", "hurt", "dislike", "boring", "useless", "sorry", "problem", "kill",
             "murder", "destroy", "die", "dead", "idiot", "shut"}
+# A short request built from a verb it has no skill for: "dance for me", "can you juggle?".
+_ASKED_TO = re.compile(r"^(?:please\s+|(?:can|could|would|will) you\s+(?:please\s+)?)(?P<verb>[a-z]+)(?:\s+(?:for|with) (?:me|us))?\s*[?.!]*$"
+                       r"|^(?P<verb2>[a-z]+)\s+(?:for|with) (?:me|us)\s*[?.!]*$", re.I)
+_KNOWN_VERBS = {"smile", "laugh", "wink", "frown", "look", "close", "open", "shut", "sleep", "wake", "count",
+                "remember", "memorise", "memorize", "imagine", "picture", "write", "note", "tell", "say",
+                "sing", "recite", "read", "think", "listen", "watch", "wait", "stop", "start", "help",
+                "repeat", "explain", "describe", "answer", "talk", "speak", "show", "turn", "move", "go"}
 _YES = re.compile(r"^(yes|yeah|yep|yup|sure|ok|okay|of course|certainly|absolutely|right|correct|indeed|please do|go ahead|why not)[.! ]*$", re.I)
 _NO = re.compile(r"^(no|nope|nah|not really|no thanks|no thank you|never mind|nevermind)[.! ]*$", re.I)
 _COMPLIMENT = re.compile(r"\b(you|u)('re| are|r)? ?(so |very |really |quite |pretty )?(beautiful|gorgeous|pretty|lovely|nice|kind|sweet|smart|clever|brilliant|amazing|awesome|wonderful|great|cool|funny|cute|impressive|helpful)\b|\b(i (really )?(like|love) (you|talking to you)|good job|well done|you did (great|well))\b", re.I)
@@ -150,7 +160,7 @@ _REQUEST_FRAME = re.compile(r"^(please\s+)?(i want you to|i'd like you to|i woul
                             r"would you|will you|now)\s+(please\s+)?")
 _STEP_SPLIT = re.compile(r"\s*(?:,\s*(?:and\s+)?(?:then\s+)?|;\s*|\s+and then\s+|\s+then\s+|\s+after that\s+|"
                          r"\s+and\s+(?=(?:close|open|shut|smile|wink|look|count|laugh|frown|raise|go|wake)\b))")
-_STEP_COMMANDS = {"express", "count", "sleep", "wake", "look", "remember", "simulate", "note", "move"}
+_STEP_COMMANDS = {"express", "count", "sleep", "wake", "look", "remember", "simulate", "note", "move", "recite"}
 
 
 def _command_of(segment: str) -> tuple[str | None, str | None]:
@@ -235,6 +245,12 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
         sentiment *= -0.5
     affirm = "yes" if _YES.match(t.strip()) else "no" if _NO.match(t.strip()) else None
     insult = bool(_INSULT.search(t))
+    request, unsupported, intent_override = "", False, None
+    m = None if command else _ASKED_TO.match(t.strip())
+    if m and not _GREETING.match(low) and not _FAREWELL.search(low):
+        verb = (m.group("verb") or m.group("verb2") or "").lower()
+        if verb and verb not in _KNOWN_VERBS and not _YES.match(t.strip()) and not _NO.match(t.strip()):
+            request, unsupported, intent_override = verb, True, "command"
     hostile = bool(_HOSTILE.search(low))
     apology = bool(_APOLOGY.search(low)) and not hostile
     if hostile:
@@ -252,6 +268,8 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
         intent = "question"
     else:
         intent = "statement"
+    if unsupported:
+        intent = "command"
     if intent == "command":
         asks = None
 
@@ -266,7 +284,7 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
         asks_about=asks, topic=" ".join(content_words(t)[:4]), entities=entities[:6],
         facts=extract_facts(t, speaker) if intent in ("statement", "greeting", "command") else [],
         sentiment=round(sentiment, 3), command=command, command_arg=arg, steps=steps, hostile=hostile,
-        apology=apology, affirm=affirm, insult=insult,
+        apology=apology, affirm=affirm, insult=insult, request=request, unsupported=unsupported,
     )
 
 
@@ -467,12 +485,28 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
 
     if intention == "comply":
         cmd, arg = a.command, a.command_arg
+        if a.unsupported:
+            what = f" to {a.request}" if a.request else " that"
+            return out(f"I don't know how{what}, sorry. I can see, listen, talk, make faces, remember things, "
+                       "imagine, sleep, and look things up. If you tell me what you mean by it, I'll remember.",
+                       ["self_model"], knowledge_gap=True)
         if cmd == "express":
             return out(pick(EXPRESS_REPLIES.get(arg or "smile", ["Okay."]), key), ["self_model"])
         if cmd == "sequence":
             return out(pick(["Okay, here goes.", "Sure, here we go."], key), ["self_model"])
         if cmd == "count":
             return out(count_text(arg))
+        if cmd == "taught":
+            trigger, _, means = (arg or "").partition("|")
+            return out(f'Got it: when you say "{trigger}", I\'ll {_first_person(means)}.', ["language"])
+        if cmd == "recite":
+            piece = ctx.get("recital") or {}
+            kind = (arg or "joke").split(" about ")[0].strip()
+            if piece.get("text"):
+                lead = pick([f"Here's one I've read: ", "Alright: ", "Okay, here goes: "], key)
+                return out(lead + piece["text"].strip(), ["knowledge"])
+            return out(f"I don't have {'an' if kind[:1] in 'aeiou' else 'a'} {kind} to tell, sorry.",
+                       knowledge_gap=True)
         if cmd == "internet":
             on = bool((ctx.get("permissions") or {}).get("internet_read"))
             if arg == "off":
@@ -572,6 +606,14 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
         extra = f" This is my {_ordinal(n)} time being switched on." if n and n > 1 else ""
         return out(f"I'm {my_name}, an experimental artificial mind. I can see you through the camera, listen, "
                    f"remember things, and I even sleep and dream.{extra}", ["self_model"])
+    if topic == "skills":
+        learned = ctx.get("skills")
+        if learned is None:
+            return out("I can\'t tell what I\'ve been taught right now.", knowledge_gap=True)
+        if not learned:
+            return out('''Nothing yet. You can teach me: say something like "when I say hop, close your eyes".''', ["self_model"])
+        told = _join([f'when you say "{s["trigger"]}" I {_first_person(s["means"])}' for s in learned[:3]])
+        return out(f"You taught me {told}.", ["memory"])
     if topic == "preference":
         em = (ctx.get("emotion") or {}).get("state") or {}
         cur = f" Right now my curiosity is at {em['curiosity']:.2f}." if "curiosity" in em else ""
@@ -853,6 +895,13 @@ def _ordinal(n: int) -> str:
 
 def _goal_phrase(desc: str) -> str:
     return (desc[0].lower() + desc[1:]).split(":")[0]
+
+
+def _first_person(text: str) -> str:
+    """An instruction as the organism would say it back: "close your eyes" -> "close my eyes"."""
+    t = re.sub(r"\byour\b", "my", text, flags=re.I)
+    t = re.sub(r"\byourself\b", "myself", t, flags=re.I)
+    return re.sub(r"^(you should|you|please)\s+", "", t.strip(), flags=re.I)
 
 
 def _second_person(text: str) -> str:

@@ -8,13 +8,14 @@
 
 ## 1. Design principles
 
-1. **The language model is not the brain.** It plays the role of *book knowledge*: everything a
-   well-read person has read. Only the `knowledge` module consults it, for impersonal
-   general-knowledge questions, and it returns data (known / answer / confidence). When the books
-   don't know, or the question is about current events, the same module can delegate to a
-   **research agent** that looks it up online (Wikidata for who holds an office, Wikipedia, and
-   Tavily web search with a key) and answers only from what it fetched, with sources. Thought, deliberation, speech, the self-narrative,
-   dreams and memory consolidation belong to the cortex's own modules.
+1. **The language model is not the brain.** It has exactly two jobs, and both return data, never
+   speech: *book knowledge* (the `knowledge` module: impersonal questions, answered as
+   known / answer / confidence, with a **research agent** that looks things up online — Wikidata for
+   who holds an office, Wikipedia, Tavily with a key — and answers only from what it fetched) and
+   *translation* (the `comprehension` module: turning an utterance the rules could not place into a
+   fixed structure — what is wanted, of what kind, about what). Thought, deliberation, speech, the
+   self-narrative, dreams and memory consolidation belong to the cortex's own modules, and without a
+   model the rule layer stands on its own.
 2. **No all-to-all coupling.** Modules talk only through a single thalamic bus:
    publish/subscribe for events, request/response for queries, nomination for attention.
    No module imports another.
@@ -93,13 +94,14 @@ Urgent stimuli trigger an immediate "phasic" tick.
 |---|---|---|---|
 | `brainstem` | Reticular activating system, hypothalamus | deterministic | arousal, energy, fatigue, sleep pressure, stress, urgency, novelty; modes AWAKE/DROWSY/ASLEEP/DREAMING; tick rhythm; thalamic sensory gain; interoceptive signals |
 | bus | Thalamus | deterministic | routing, provenance (`caused_by`), timestamps, sensory gating, request/response, event log, quiescence tracking |
-| `attention` | Salience network, pulvinar | algorithm | competition over salience, novelty, urgency, goal relevance, emotional relevance, uncertainty and prediction error; weights modulated by curiosity/fear; an arousal-, energy- and mode-dependent ignition threshold |
+| `attention` | Salience network, pulvinar | algorithm + plasticity | competition over salience, novelty, urgency, goal relevance, emotional relevance, uncertainty and prediction error; weights modulated by curiosity/fear; an arousal-, energy- and mode-dependent ignition threshold; **learned weights**: components that spoke for something that mattered (remembered, acted on, thought about) are strengthened, those that led nowhere are weakened, bounded and kept across restarts |
 | `workspace` | Global neuronal workspace | deterministic | capacity-limited (4) broadcast contents with decay and displacement; a local relay replaces it in ablations |
 | `working_memory` | Prefrontal / phonological loop | deterministic | 7 slots, exponential decay, rehearsal, eviction by activation × importance; dialog buffer; unresolved questions |
 | `memory` | Hippocampus + cortex | embeddings + database | episodic, semantic, procedural, autobiographical, dream and imagined memories; importance-gated encoding; cue-driven and explicit recall (relevance × retention × importance × strength); temporal memory (see §7) |
 | `emotion` | Limbic valuation | deterministic | pleasure, discomfort, curiosity, fear, urgency, social, novelty, frustration, satisfaction, boredom; appraisal + homeostatic decay; causally modulates attention, encoding, arousal and action |
 | `goals` | vmPFC / motivational systems | deterministic | persistent intrinsic goals + situational goals (respond, explore surprises); dynamic priorities (rest ∝ fatigue) |
 | `thought` | Inner speech / dlPFC | symbolic | bounded thought chains, loop detection, interruption, rate limits, mind-wandering when idle (which may bring back something it has read); think-before-speaking deliberation |
+| `comprehension` | Wernicke (language understanding) | rules + language model as translator | turns what the rules could not place into a structured request (perform / act / ask / social), maps it to a capability or admits there is none, and holds **learned skills**: what the person teaches ("when I say hop, close your eyes") is matched by wording and by meaning, kept in procedural memory and across restarts |
 | `language` | Wernicke / Broca | parser + composer | structured understanding (intents, facts, commands, multi-step requests); replies composed from the cortex's actual state in its own words; general-knowledge answers woven in ("From what I've read, ..."); verbal reports logged beside their state snapshots |
 | `knowledge` | Semantic cortex fed by reading | language model + research agent | answers impersonal questions as data; refuses anything about itself, the speaker, the moment or its location before any model or network call; discards answers where a persona leaks in; for unknown or time-sensitive questions (and only with the `internet_read` permission) delegates to a bounded research agent that asks Wikidata for office holders (current or in a given year, with dates) and searches Wikipedia and Tavily, answers only from fetched notes with citations, and falls back to a fixed pipeline; remembers what it read or looked up as semantic memory with source and date |
 | `speech` | Motor speech | effector | executes approved speech; safety text filter; optional synthesised voice; efference copy |
@@ -229,14 +231,32 @@ stateDiagram-v2
   human time labels ("this morning", "yesterday evening", "on Monday"). When nothing is found,
   it says so rather than guessing.
 
-## 8. Time
+## 8. Plasticity
+
+What experience changes, and what it does not:
+
+* **Attention weights** move towards what turned out to matter. Shortly after an item wins the
+  workspace, the cortex checks whether anything came of it (a memory encoded, an action selected, a
+  thought, a prediction error); the components that spoke for it are strengthened or weakened, within
+  bounds, and persisted.
+* **Skills.** A wording the person explains ("when I say hop, close your eyes") becomes a learned
+  skill, stored as procedural memory, matched later by wording or meaning, and kept across restarts.
+* **Habits.** Action selection keeps a success rate per action and prefers what has worked.
+* **Memory.** Retrieval strengthens a trace and slows its forgetting (the spacing effect); sleep
+  turns repeated episodes into semantic knowledge.
+* **Limitations.** Blocked actions become learned limitations in the self-model.
+
+Not learned: the module structure, the safety policy and the permissions. Each of these can be
+switched off for ablations (`[attention] learn`, ablating `comprehension`).
+
+## 9. Time
 
 A real clock (optionally scaled) or a virtual clock (advances per tick; used for experiments).
 The temporal state tracks boot time, elapsed time, downtime, episodes (a new episode after sleep
 or a long silence) and sleep cycles. The self-model keeps an activity timeline ("five minutes
 ago I was talking with Ada").
 
-## 9. Safety
+## 10. Safety
 
 `cognition → ACTION_SELECTED → safety → ACTION_APPROVED/REJECTED → effectors`. Actions that reach
 outside the cortex need explicit permission grants; looking things up online needs `internet_read`
@@ -245,7 +265,7 @@ is rate-limited and cached. Speech can give a permission up but never grant one.
 prompts, logs and memories pass through secret redaction (optional PII redaction). The camera
 and microphone are off by default, and raw frames are not stored.
 
-## 10. Observability
+## 11. Observability
 
 A live dashboard shows arousal and body state, attention (components, weights, threshold), the
 workspace, the current thought and inner monologue, goals, the valuation state with history,
@@ -262,7 +282,7 @@ recognised speech to the auditory channel; its mouth renders speech; its express
 brainstem, the valuation state and requested expressions. Nothing the face displays writes back
 into the cortex's state.
 
-## 11. Experiments
+## 12. Experiments
 
 **Benchmark** (`python -m organism benchmark`, results in [docs/results.md](docs/results.md)): 12
 tasks, each testing one claim (memory, restart, temporal memory, introspection, attention,

@@ -55,6 +55,31 @@ def time_sensitive(question: str) -> bool:
     return bool(_TIME_SENSITIVE.search(question))
 
 
+RECITE_SYSTEM = """You are a library of things people have written and told each other. Given a kind of piece
+(a joke, riddle, poem, story, quote, tongue twister) and optionally a topic, return ONE short, well-known,
+family-friendly piece of that kind, as it is usually told. Plain text only, at most 45 words, no preamble,
+no explanation, nothing about yourself and nobody addressed as "I" or "you" outside the piece itself."""
+
+# Pieces for the symbolic layer, so a cortex without a language model can still tell one (public domain).
+STOCK = {
+    "joke": ["Why don't scientists trust atoms? Because they make up everything.",
+             "Why did the scarecrow win an award? He was outstanding in his field.",
+             "What do you call a fish with no eyes? Fsh."],
+    "riddle": ["What has keys but opens no locks? A piano.",
+               "What gets wetter the more it dries? A towel."],
+    "quote": ["\\u201cThe only thing we have to fear is fear itself.\\u201d",
+              "\\u201cI think, therefore I am.\\u201d"],
+    "tongue twister": ["She sells seashells by the seashore."],
+    "poem": ["Roses are red, violets are blue, memory is fragile, and so are you."],
+    "story": ["A hare mocked a tortoise for being slow, so they raced. The hare stopped to nap; the tortoise "
+              "kept walking and won."],
+}
+
+
+class Piece(BaseModel):
+    text: str = ""
+
+
 class Lookup(BaseModel):
     known: bool = False
     answer: str = ""
@@ -83,6 +108,7 @@ class Knowledge(CognitiveModule):
 
     async def start(self) -> None:
         self.respond("knowledge.query", self.query)
+        self.respond("knowledge.recite", self.recite)
         self.tools = WebTools(lang=self.cfg.wikipedia_lang, timeout_s=self.cfg.timeout_s,
                               cache_ttl_s=self.cfg.cache_ttl_s, max_calls_per_hour=self.cfg.max_web_calls_per_hour)
         self.agent = ResearchAgent(self.ctx.llm, self.tools, max_steps=self.cfg.max_agent_steps)
@@ -127,6 +153,22 @@ class Knowledge(CognitiveModule):
             book = {**book, "reason": "internet_off"}
         self.stats["known" if book["known"] else "unknown"] += 1
         return book
+
+    async def recite(self, q: dict) -> dict:
+        """One piece of the requested kind, from what it has read (a joke, a riddle, a poem, ...)."""
+        kind = str(q.get("kind") or "joke").strip().lower()
+        topic = str(q.get("topic") or "").strip()
+        stock = STOCK.get(kind, [])
+        res = await self.ctx.llm.complete(
+            "recite", RECITE_SYSTEM, f"Kind: {kind}\nTopic: {topic or 'anything'}\nPiece:", schema=Piece,
+            fallback=lambda: Piece(text=self.ctx.rng.choice(stock) if stock else ""), priority=2, max_tokens=120,
+            temperature=0.9)
+        text = (res.data.text or "").strip()
+        if not text and stock:
+            text = self.ctx.rng.choice(stock)
+        self.recent = ([{"t": self.now(), "topic": f"{kind}{' about ' + topic if topic else ''}", "known": bool(text),
+                         "answer": text, "via": "recited"}] + self.recent)[:12]
+        return {"text": text, "kind": kind, "source": f"reading ({res.model})" if text else "none"}
 
     async def _look_up(self, topic: str, fresh: bool) -> dict | None:
         agent = self.agent if self.cfg.agent else ResearchAgent(_Symbolic(), self.tools, self.cfg.max_agent_steps)

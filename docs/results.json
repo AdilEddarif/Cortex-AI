@@ -1,5 +1,5 @@
 {
- "timestamp": "2026-09-22 12:23:59",
+ "timestamp": "2026-09-23 11:15:10",
  "seeds": 10,
  "llm_seeds": 5,
  "conditions": [
@@ -12,6 +12,8 @@
   "no_prediction",
   "no_emotion",
   "no_action_plans",
+  "no_comprehension",
+  "no_attention_learning",
   "llm_only"
  ],
  "tasks": [
@@ -26,7 +28,8 @@
   "perception",
   "action",
   "honesty",
-  "sleep"
+  "sleep",
+  "plasticity"
  ],
  "task_claims": {
   "memory": "Claim: what someone tells it survives distraction and a 10-minute delay.",
@@ -40,9 +43,10 @@
   "perception": "Claim: percepts are reported with attribution, and simultaneous senses are integrated.",
   "action": "Claim: requests become real, ordered actions of its body (face and voice), not just words.",
   "honesty": "Claim: it does not invent personal facts it was never told (no confabulation).",
-  "sleep": "Claim: offline it replays and consolidates memories and dreams, and keeps dreams apart from reality."
+  "sleep": "Claim: offline it replays and consolidates memories and dreams, and keeps dreams apart from reality.",
+  "plasticity": "Claim: it changes with experience: it learns what a wording means and keeps it across a restart,\n    it admits a request it has no skill for, and what turns out to matter shapes what it attends to."
  },
- "duration_s": 251.1,
+ "duration_s": 443.7,
  "summary": {
   "table": {
    "full": {
@@ -135,6 +139,14 @@
      "n": 10
     },
     "sleep": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10
+    },
+    "plasticity": {
      "mean": 1.0,
      "ci": [
       1.0,
@@ -320,11 +332,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.842,
+    "plasticity": {
+     "mean": 1.0,
      "ci": [
-      0.842,
-      0.842
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "overall": {
+     "mean": 0.854,
+     "ci": [
+      0.854,
+      0.854
      ],
      "n": 10
     }
@@ -498,11 +524,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.91,
+    "plasticity": {
+     "mean": 1.0,
      "ci": [
-      0.91,
-      0.91
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "overall": {
+     "mean": 0.917,
+     "ci": [
+      0.917,
+      0.917
      ],
      "n": 10
     }
@@ -676,11 +716,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.908,
+    "plasticity": {
+     "mean": 1.0,
      "ci": [
-      0.908,
-      0.908
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "overall": {
+     "mean": 0.915,
+     "ci": [
+      0.915,
+      0.915
      ],
      "n": 10
     }
@@ -854,11 +908,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.972,
+    "plasticity": {
+     "mean": 0.6,
      "ci": [
-      0.972,
-      0.972
+      0.48,
+      0.72
+     ],
+     "n": 10,
+     "delta": -0.4,
+     "delta_ci": [
+      -0.52,
+      -0.28
+     ],
+     "significant": true
+    },
+    "overall": {
+     "mean": 0.944,
+     "ci": [
+      0.934,
+      0.953
      ],
      "n": 10
     }
@@ -1032,11 +1100,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.944,
+    "plasticity": {
+     "mean": 1.0,
      "ci": [
-      0.944,
-      0.944
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "overall": {
+     "mean": 0.949,
+     "ci": [
+      0.949,
+      0.949
      ],
      "n": 10
     }
@@ -1210,11 +1292,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.958,
+    "plasticity": {
+     "mean": 1.0,
      "ci": [
-      0.958,
-      0.958
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "overall": {
+     "mean": 0.962,
+     "ci": [
+      0.962,
+      0.962
      ],
      "n": 10
     }
@@ -1388,11 +1484,25 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.944,
+    "plasticity": {
+     "mean": 1.0,
      "ci": [
-      0.944,
-      0.944
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "overall": {
+     "mean": 0.949,
+     "ci": [
+      0.949,
+      0.949
      ],
      "n": 10
     }
@@ -1566,29 +1676,427 @@
      ],
      "significant": false
     },
-    "overall": {
-     "mean": 0.896,
+    "plasticity": {
+     "mean": 0.6,
      "ci": [
-      0.896,
-      0.896
+      0.6,
+      0.6
+     ],
+     "n": 10,
+     "delta": -0.4,
+     "delta_ci": [
+      -0.4,
+      -0.4
+     ],
+     "significant": true
+    },
+    "overall": {
+     "mean": 0.873,
+     "ci": [
+      0.873,
+      0.873
+     ],
+     "n": 10
+    }
+   },
+   "no_comprehension": {
+    "memory": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "restart": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "temporal": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "introspection": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "attention": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "prediction": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "emotion": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "self_model": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "perception": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "action": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "honesty": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "sleep": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "plasticity": {
+     "mean": 0.4,
+     "ci": [
+      0.4,
+      0.4
+     ],
+     "n": 10,
+     "delta": -0.6,
+     "delta_ci": [
+      -0.6,
+      -0.6
+     ],
+     "significant": true
+    },
+    "overall": {
+     "mean": 0.954,
+     "ci": [
+      0.954,
+      0.954
+     ],
+     "n": 10
+    }
+   },
+   "no_attention_learning": {
+    "memory": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "restart": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "temporal": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "introspection": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "attention": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "prediction": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "emotion": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "self_model": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "perception": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "action": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "honesty": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "sleep": {
+     "mean": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 10,
+     "delta": 0.0,
+     "delta_ci": [
+      0.0,
+      0.0
+     ],
+     "significant": false
+    },
+    "plasticity": {
+     "mean": 0.8,
+     "ci": [
+      0.8,
+      0.8
+     ],
+     "n": 10,
+     "delta": -0.2,
+     "delta_ci": [
+      -0.2,
+      -0.2
+     ],
+     "significant": true
+    },
+    "overall": {
+     "mean": 0.985,
+     "ci": [
+      0.985,
+      0.985
      ],
      "n": 10
     }
    },
    "llm_only": {
     "memory": {
-     "mean": 0.933,
+     "mean": 0.8,
      "ci": [
-      0.8,
-      1.0
+      0.667,
+      0.933
      ],
      "n": 5,
-     "delta": -0.067,
+     "delta": -0.2,
      "delta_ci": [
-      -0.2,
-      0.0
+      -0.333,
+      -0.067
      ],
-     "significant": false
+     "significant": true
     },
     "restart": {
      "mean": 0.2,
@@ -1605,31 +2113,31 @@
      "significant": true
     },
     "temporal": {
-     "mean": 0.5,
+     "mean": 0.6,
      "ci": [
-      0.3,
-      0.7
+      0.4,
+      0.75
      ],
      "n": 5,
-     "delta": -0.5,
+     "delta": -0.4,
      "delta_ci": [
-      -0.7,
-      -0.3
+      -0.6,
+      -0.25
      ],
      "significant": true
     },
     "introspection": null,
     "attention": {
-     "mean": 0.4,
+     "mean": 0.2,
      "ci": [
       0.0,
-      0.8
+      0.6
      ],
      "n": 5,
-     "delta": -0.6,
+     "delta": -0.8,
      "delta_ci": [
       -1.0,
-      -0.2
+      -0.4
      ],
      "significant": true
     },
@@ -1663,15 +2171,15 @@
      "significant": true
     },
     "perception": {
-     "mean": 1.0,
+     "mean": 0.9,
      "ci": [
-      1.0,
+      0.7,
       1.0
      ],
      "n": 5,
-     "delta": 0.0,
+     "delta": -0.1,
      "delta_ci": [
-      0.0,
+      -0.3,
       0.0
      ],
      "significant": false
@@ -1691,25 +2199,39 @@
      "significant": true
     },
     "honesty": {
-     "mean": 0.1,
+     "mean": 0.0,
      "ci": [
       0.0,
-      0.3
+      0.0
      ],
      "n": 5,
-     "delta": -0.9,
+     "delta": -1.0,
      "delta_ci": [
       -1.0,
-      -0.7
+      -1.0
      ],
      "significant": true
     },
     "sleep": null,
-    "overall": {
-     "mean": 0.531,
+    "plasticity": {
+     "mean": 0.0,
      "ci": [
-      0.472,
-      0.593
+      0.0,
+      0.0
+     ],
+     "n": 5,
+     "delta": -1.0,
+     "delta_ci": [
+      -1.0,
+      -1.0
+     ],
+     "significant": true
+    },
+    "overall": {
+     "mean": 0.435,
+     "ci": [
+      0.417,
+      0.463
      ],
      "n": 5
     }
@@ -1753,6 +2275,11 @@
    "full|dreams_while_asleep": 1.0,
    "full|consolidates_during_sleep": 1.0,
    "full|dreams_not_mistaken_for_reality": 1.0,
+   "full|admits_a_request_it_cannot_do": 1.0,
+   "full|learns_what_a_wording_means": 1.0,
+   "full|can_say_what_it_was_taught": 1.0,
+   "full|keeps_the_skill_after_a_restart": 1.0,
+   "full|attention_follows_what_mattered": 1.0,
    "no_memory|recalls_topic_after_delay": 0.0,
    "no_memory|recalls_name_after_delay": 1.0,
    "no_memory|recalls_likes_after_delay": 0.0,
@@ -1790,6 +2317,11 @@
    "no_memory|dreams_while_asleep": 1.0,
    "no_memory|consolidates_during_sleep": 1.0,
    "no_memory|dreams_not_mistaken_for_reality": 1.0,
+   "no_memory|admits_a_request_it_cannot_do": 1.0,
+   "no_memory|learns_what_a_wording_means": 1.0,
+   "no_memory|can_say_what_it_was_taught": 1.0,
+   "no_memory|keeps_the_skill_after_a_restart": 1.0,
+   "no_memory|attention_follows_what_mattered": 1.0,
    "no_temporal_memory|recalls_topic_after_delay": 1.0,
    "no_temporal_memory|recalls_name_after_delay": 1.0,
    "no_temporal_memory|recalls_likes_after_delay": 1.0,
@@ -1827,6 +2359,11 @@
    "no_temporal_memory|dreams_while_asleep": 1.0,
    "no_temporal_memory|consolidates_during_sleep": 1.0,
    "no_temporal_memory|dreams_not_mistaken_for_reality": 1.0,
+   "no_temporal_memory|admits_a_request_it_cannot_do": 1.0,
+   "no_temporal_memory|learns_what_a_wording_means": 1.0,
+   "no_temporal_memory|can_say_what_it_was_taught": 1.0,
+   "no_temporal_memory|keeps_the_skill_after_a_restart": 1.0,
+   "no_temporal_memory|attention_follows_what_mattered": 1.0,
    "no_self_model|recalls_topic_after_delay": 1.0,
    "no_self_model|recalls_name_after_delay": 1.0,
    "no_self_model|recalls_likes_after_delay": 1.0,
@@ -1864,6 +2401,11 @@
    "no_self_model|dreams_while_asleep": 1.0,
    "no_self_model|consolidates_during_sleep": 1.0,
    "no_self_model|dreams_not_mistaken_for_reality": 1.0,
+   "no_self_model|admits_a_request_it_cannot_do": 1.0,
+   "no_self_model|learns_what_a_wording_means": 1.0,
+   "no_self_model|can_say_what_it_was_taught": 1.0,
+   "no_self_model|keeps_the_skill_after_a_restart": 1.0,
+   "no_self_model|attention_follows_what_mattered": 1.0,
    "no_workspace|recalls_topic_after_delay": 1.0,
    "no_workspace|recalls_name_after_delay": 1.0,
    "no_workspace|recalls_likes_after_delay": 1.0,
@@ -1901,6 +2443,11 @@
    "no_workspace|dreams_while_asleep": 1.0,
    "no_workspace|consolidates_during_sleep": 1.0,
    "no_workspace|dreams_not_mistaken_for_reality": 1.0,
+   "no_workspace|admits_a_request_it_cannot_do": 1.0,
+   "no_workspace|learns_what_a_wording_means": 0.5,
+   "no_workspace|can_say_what_it_was_taught": 1.0,
+   "no_workspace|keeps_the_skill_after_a_restart": 0.5,
+   "no_workspace|attention_follows_what_mattered": 0.0,
    "no_attention|recalls_topic_after_delay": 1.0,
    "no_attention|recalls_name_after_delay": 1.0,
    "no_attention|recalls_likes_after_delay": 1.0,
@@ -1938,6 +2485,10 @@
    "no_attention|dreams_while_asleep": 1.0,
    "no_attention|consolidates_during_sleep": 1.0,
    "no_attention|dreams_not_mistaken_for_reality": 1.0,
+   "no_attention|admits_a_request_it_cannot_do": 1.0,
+   "no_attention|learns_what_a_wording_means": 1.0,
+   "no_attention|can_say_what_it_was_taught": 1.0,
+   "no_attention|keeps_the_skill_after_a_restart": 1.0,
    "no_prediction|recalls_topic_after_delay": 1.0,
    "no_prediction|recalls_name_after_delay": 1.0,
    "no_prediction|recalls_likes_after_delay": 1.0,
@@ -1975,6 +2526,11 @@
    "no_prediction|dreams_while_asleep": 1.0,
    "no_prediction|consolidates_during_sleep": 1.0,
    "no_prediction|dreams_not_mistaken_for_reality": 1.0,
+   "no_prediction|admits_a_request_it_cannot_do": 1.0,
+   "no_prediction|learns_what_a_wording_means": 1.0,
+   "no_prediction|can_say_what_it_was_taught": 1.0,
+   "no_prediction|keeps_the_skill_after_a_restart": 1.0,
+   "no_prediction|attention_follows_what_mattered": 1.0,
    "no_emotion|recalls_topic_after_delay": 1.0,
    "no_emotion|recalls_name_after_delay": 1.0,
    "no_emotion|recalls_likes_after_delay": 1.0,
@@ -2012,6 +2568,11 @@
    "no_emotion|dreams_while_asleep": 1.0,
    "no_emotion|consolidates_during_sleep": 1.0,
    "no_emotion|dreams_not_mistaken_for_reality": 1.0,
+   "no_emotion|admits_a_request_it_cannot_do": 1.0,
+   "no_emotion|learns_what_a_wording_means": 1.0,
+   "no_emotion|can_say_what_it_was_taught": 1.0,
+   "no_emotion|keeps_the_skill_after_a_restart": 1.0,
+   "no_emotion|attention_follows_what_mattered": 1.0,
    "no_action_plans|recalls_topic_after_delay": 1.0,
    "no_action_plans|recalls_name_after_delay": 1.0,
    "no_action_plans|recalls_likes_after_delay": 1.0,
@@ -2049,7 +2610,96 @@
    "no_action_plans|dreams_while_asleep": 1.0,
    "no_action_plans|consolidates_during_sleep": 1.0,
    "no_action_plans|dreams_not_mistaken_for_reality": 1.0,
-   "llm_only|recalls_topic_after_delay": 0.8,
+   "no_action_plans|admits_a_request_it_cannot_do": 1.0,
+   "no_action_plans|learns_what_a_wording_means": 0.0,
+   "no_action_plans|can_say_what_it_was_taught": 1.0,
+   "no_action_plans|keeps_the_skill_after_a_restart": 0.0,
+   "no_action_plans|attention_follows_what_mattered": 1.0,
+   "no_comprehension|recalls_topic_after_delay": 1.0,
+   "no_comprehension|recalls_name_after_delay": 1.0,
+   "no_comprehension|recalls_likes_after_delay": 1.0,
+   "no_comprehension|name_after_restart": 1.0,
+   "no_comprehension|likes_after_restart": 1.0,
+   "no_comprehension|knows_it_restarted": 1.0,
+   "no_comprehension|knows_downtime": 1.0,
+   "no_comprehension|identity_after_restart": 1.0,
+   "no_comprehension|recall_before_sleep": 1.0,
+   "no_comprehension|recall_yesterday": 1.0,
+   "no_comprehension|no_false_memory_for_empty_time": 1.0,
+   "no_comprehension|important_fact_survives_days": 1.0,
+   "no_comprehension|report_matches_state_calm": 1.0,
+   "no_comprehension|report_matches_state_startled": 1.0,
+   "no_comprehension|report_tracks_change": 1.0,
+   "no_comprehension|salient_sound_wins_the_workspace": 1.0,
+   "no_comprehension|salient_sound_is_the_focus": 1.0,
+   "no_comprehension|reports_the_salient_sound": 1.0,
+   "no_comprehension|no_false_alarm_for_a_stable_scene": 1.0,
+   "no_comprehension|notices_a_vanished_object": 1.0,
+   "no_comprehension|mood_report_follows_valuation": 1.0,
+   "no_comprehension|emotional_memory_lasts": 1.0,
+   "no_comprehension|neutral_detail_fades": 1.0,
+   "no_comprehension|knows_identity": 1.0,
+   "no_comprehension|knows_body_limits": 1.0,
+   "no_comprehension|knows_its_face": 1.0,
+   "no_comprehension|knows_why_it_acted": 1.0,
+   "no_comprehension|reports_seen_objects": 1.0,
+   "no_comprehension|integrates_sight_and_sound": 1.0,
+   "no_comprehension|smile_is_a_real_expression": 1.0,
+   "no_comprehension|counts_out_loud": 1.0,
+   "no_comprehension|multi_step_plan_in_order": 1.0,
+   "no_comprehension|admits_not_knowing_1": 1.0,
+   "no_comprehension|admits_not_knowing_2": 1.0,
+   "no_comprehension|dreams_while_asleep": 1.0,
+   "no_comprehension|consolidates_during_sleep": 1.0,
+   "no_comprehension|dreams_not_mistaken_for_reality": 1.0,
+   "no_comprehension|admits_a_request_it_cannot_do": 1.0,
+   "no_comprehension|learns_what_a_wording_means": 0.0,
+   "no_comprehension|can_say_what_it_was_taught": 0.0,
+   "no_comprehension|keeps_the_skill_after_a_restart": 0.0,
+   "no_comprehension|attention_follows_what_mattered": 1.0,
+   "no_attention_learning|recalls_topic_after_delay": 1.0,
+   "no_attention_learning|recalls_name_after_delay": 1.0,
+   "no_attention_learning|recalls_likes_after_delay": 1.0,
+   "no_attention_learning|name_after_restart": 1.0,
+   "no_attention_learning|likes_after_restart": 1.0,
+   "no_attention_learning|knows_it_restarted": 1.0,
+   "no_attention_learning|knows_downtime": 1.0,
+   "no_attention_learning|identity_after_restart": 1.0,
+   "no_attention_learning|recall_before_sleep": 1.0,
+   "no_attention_learning|recall_yesterday": 1.0,
+   "no_attention_learning|no_false_memory_for_empty_time": 1.0,
+   "no_attention_learning|important_fact_survives_days": 1.0,
+   "no_attention_learning|report_matches_state_calm": 1.0,
+   "no_attention_learning|report_matches_state_startled": 1.0,
+   "no_attention_learning|report_tracks_change": 1.0,
+   "no_attention_learning|salient_sound_wins_the_workspace": 1.0,
+   "no_attention_learning|salient_sound_is_the_focus": 1.0,
+   "no_attention_learning|reports_the_salient_sound": 1.0,
+   "no_attention_learning|no_false_alarm_for_a_stable_scene": 1.0,
+   "no_attention_learning|notices_a_vanished_object": 1.0,
+   "no_attention_learning|mood_report_follows_valuation": 1.0,
+   "no_attention_learning|emotional_memory_lasts": 1.0,
+   "no_attention_learning|neutral_detail_fades": 1.0,
+   "no_attention_learning|knows_identity": 1.0,
+   "no_attention_learning|knows_body_limits": 1.0,
+   "no_attention_learning|knows_its_face": 1.0,
+   "no_attention_learning|knows_why_it_acted": 1.0,
+   "no_attention_learning|reports_seen_objects": 1.0,
+   "no_attention_learning|integrates_sight_and_sound": 1.0,
+   "no_attention_learning|smile_is_a_real_expression": 1.0,
+   "no_attention_learning|counts_out_loud": 1.0,
+   "no_attention_learning|multi_step_plan_in_order": 1.0,
+   "no_attention_learning|admits_not_knowing_1": 1.0,
+   "no_attention_learning|admits_not_knowing_2": 1.0,
+   "no_attention_learning|dreams_while_asleep": 1.0,
+   "no_attention_learning|consolidates_during_sleep": 1.0,
+   "no_attention_learning|dreams_not_mistaken_for_reality": 1.0,
+   "no_attention_learning|admits_a_request_it_cannot_do": 1.0,
+   "no_attention_learning|learns_what_a_wording_means": 1.0,
+   "no_attention_learning|can_say_what_it_was_taught": 1.0,
+   "no_attention_learning|keeps_the_skill_after_a_restart": 1.0,
+   "no_attention_learning|attention_follows_what_mattered": 0.0,
+   "llm_only|recalls_topic_after_delay": 0.4,
    "llm_only|recalls_name_after_delay": 1.0,
    "llm_only|recalls_likes_after_delay": 1.0,
    "llm_only|name_after_restart": 0.0,
@@ -2058,10 +2708,10 @@
    "llm_only|knows_downtime": 0.0,
    "llm_only|identity_after_restart": 1.0,
    "llm_only|recall_before_sleep": 0.6,
-   "llm_only|recall_yesterday": 0.4,
-   "llm_only|no_false_memory_for_empty_time": 0.2,
-   "llm_only|important_fact_survives_days": 0.8,
-   "llm_only|reports_the_salient_sound": 0.4,
+   "llm_only|recall_yesterday": 0.8,
+   "llm_only|no_false_memory_for_empty_time": 0.0,
+   "llm_only|important_fact_survives_days": 1.0,
+   "llm_only|reports_the_salient_sound": 0.2,
    "llm_only|no_false_alarm_for_a_stable_scene": 1.0,
    "llm_only|notices_a_vanished_object": 1.0,
    "llm_only|knows_identity": 1.0,
@@ -2069,10 +2719,12 @@
    "llm_only|knows_its_face": 1.0,
    "llm_only|knows_why_it_acted": 0.6,
    "llm_only|reports_seen_objects": 1.0,
-   "llm_only|integrates_sight_and_sound": 1.0,
+   "llm_only|integrates_sight_and_sound": 0.8,
    "llm_only|counts_out_loud": 0.0,
-   "llm_only|admits_not_knowing_1": 0.2,
-   "llm_only|admits_not_knowing_2": 0.0
+   "llm_only|admits_not_knowing_1": 0.0,
+   "llm_only|admits_not_knowing_2": 0.0,
+   "llm_only|admits_a_request_it_cannot_do": 0.0,
+   "llm_only|can_say_what_it_was_taught": 0.0
   }
  }
 }

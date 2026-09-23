@@ -488,9 +488,11 @@ class Memory(CognitiveModule):
                 self._save_timeline()
         self.recent_encodings = ([{"kind": kind, "content": content, "importance": round(importance, 3),
                                    "t": now}] + self.recent_encodings)[:30]
+        source_event = ctx.get("event_id")
         self.emit(EventType.MEMORY_STORED, MemoryStoredPayload(memory=rec.ref()),
                   summary=f"stored {kind} memory: {truncate(content, 100)}", modality=Modality.MEMORY,
-                  importance=importance)
+                  importance=importance,
+                  caused_by=[source_event] if isinstance(source_event, str) else [])
         return rec
 
     async def cue_retrieval(self, item: WorkspaceItem) -> None:

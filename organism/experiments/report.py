@@ -16,6 +16,7 @@ LABELS = {
     "full": "Full CortexAI", "no_memory": "− long-term memory", "no_temporal_memory": "− temporal memory",
     "no_self_model": "− self-model", "no_workspace": "− global workspace", "no_attention": "− attention",
     "no_prediction": "− prediction", "no_emotion": "− emotion", "no_action_plans": "− face / expression",
+    "no_comprehension": "− comprehension", "no_attention_learning": "− attention learning",
     "llm_only": "LLM-only chatbot",
 }
 

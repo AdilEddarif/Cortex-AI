@@ -1,6 +1,6 @@
 """A scripted, reproducible tour of CortexAI (``python -m organism demo``).
 
-Ten short scenes, each showing one claim of the architecture, with the internal events that
+Eleven short scenes, each showing one claim of the architecture, with the internal events that
 produced each reply printed next to it: what won the workspace, the actual arousal behind a
 verbal report, the face's actions, dreams during sleep, the boot count after a restart. It runs on
 the virtual clock with the deterministic language layer, so every run tells the same story.
@@ -137,6 +137,24 @@ class Tour:
         self.out("scene", "10. Its own mind: thoughts it had, not scripted replies")
         await self.org.tick(40)
         await self.say("What are you thinking right now?")
+
+        self.out("scene", "11. Plasticity: it learns what your words mean, and what is worth attending to")
+        await self.say("tell me a joke")
+        await self.say("dance for me")
+        before = dict(self.org.modules["attention"].learned)
+        await self.say("when I say hop, close your eyes")
+        i = len(self.events)
+        await self.say("hop")
+        await self.org.tick(2)
+        for e in self.since(i, EventType.ACTION_EXECUTED):
+            if e.payload["spec"]["action"] == "express":
+                self.out("inner", f"face: {e.payload['result'].get('detail')} (from a skill it was taught)")
+        await self.say("what have you learned?")
+        att = self.org.modules["attention"]
+        moved = sorted(((k, att.learned[k] - before[k]) for k in before), key=lambda kv: -abs(kv[1]))[:2]
+        self.out("inner", "attention weights after this conversation: "
+                 + ", ".join(f"{k} {d:+.3f}" for k, d in moved)
+                 + f" ({att.learning['mattered']} items mattered, {att.learning['ignored']} led nowhere)")
         await self.org.stop()
 
     def markdown(self) -> str:
