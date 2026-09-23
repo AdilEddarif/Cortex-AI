@@ -93,6 +93,8 @@ NEGATIVE = {"bad", "hate", "terrible", "awful", "sad", "angry", "upset", "annoye
             "murder", "destroy", "die", "dead", "idiot", "shut"}
 _YES = re.compile(r"^(yes|yeah|yep|yup|sure|ok|okay|of course|certainly|absolutely|right|correct|indeed|please do|go ahead|why not)[.! ]*$", re.I)
 _NO = re.compile(r"^(no|nope|nah|not really|no thanks|no thank you|never mind|nevermind)[.! ]*$", re.I)
+_COMPLIMENT = re.compile(r"\b(you|u)('re| are|r)? ?(so |very |really |quite |pretty )?(beautiful|gorgeous|pretty|lovely|nice|kind|sweet|smart|clever|brilliant|amazing|awesome|wonderful|great|cool|funny|cute|impressive|helpful)\b|\b(i (really )?(like|love) (you|talking to you)|good job|well done|you did (great|well))\b", re.I)
+_INSULT = re.compile(r"\b(you|u)('re| are|r)? ?(so |very |really |such )?(a )?(stupid|dumb|idiot|idiotic|useless|worthless|garbage|trash|rubbish|pathetic|annoying|boring|terrible|awful|horrible|disappointing|broken|a joke)\b|\b(shut up|you suck|i hate talking to you)\b", re.I)
 _APOLOGY = re.compile(r"\b(sorry|i apologi[sz]e|(just|only) (kidding|joking|testing)|i was (joking|kidding|testing)|"
                       r"didn't mean (it|that)|did not mean (it|that)|no hard feelings)\b")
 # Hostility aimed at the organism itself: a threat to harm, destroy or delete it, or hatred.
@@ -124,8 +126,8 @@ def extract_facts(text: str, speaker: str) -> list[Fact]:
         facts.append(Fact(subject=speaker, relation="name", object=_clean(m.group(1)).title(), confidence=0.9))
     for m in re.finditer(r"\bi (?:really |also |do )?(like|love|enjoy|hate|dislike)\s+([\w\s\-']{2,40}?)(?=[.,!?]|$| and | but )", low):
         rel = {"like": "likes", "love": "loves", "enjoy": "enjoys", "hate": "hates", "dislike": "dislikes"}[m.group(1)]
-        if _clean(m.group(2)).split()[0] in _PRONOUNS:  # "I love her so much" is not a preference for "her"
-            continue
+        if _clean(m.group(2)).split()[0] in _PRONOUNS or _COMPLIMENT.search(low):
+            continue  # "I love her so much" / "I like talking to you" are not preferences to file
         facts.append(Fact(subject=speaker, relation=rel, object=_clean(text[m.start(2):m.end(2)]), confidence=0.8))
     m = re.search(r"\bi (?:live in|am from|'m from)\s+([\w\s\-]{2,30}?)(?=[.,!?]|$)", low)
     if m:
@@ -232,6 +234,7 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
     if "not" in words or "n't" in low:
         sentiment *= -0.5
     affirm = "yes" if _YES.match(t.strip()) else "no" if _NO.match(t.strip()) else None
+    insult = bool(_INSULT.search(t))
     hostile = bool(_HOSTILE.search(low))
     apology = bool(_APOLOGY.search(low)) and not hostile
     if hostile:
@@ -263,7 +266,7 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
         asks_about=asks, topic=" ".join(content_words(t)[:4]), entities=entities[:6],
         facts=extract_facts(t, speaker) if intent in ("statement", "greeting", "command") else [],
         sentiment=round(sentiment, 3), command=command, command_arg=arg, steps=steps, hostile=hostile,
-        apology=apology, affirm=affirm,
+        apology=apology, affirm=affirm, insult=insult,
     )
 
 
@@ -433,8 +436,18 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
         return out(pick([f"Bye{you}! Talk soon.", f"See you{you}!", f"Goodbye{you}, it was nice talking."], key))
 
     if intention == "reconcile":
-        return out(pick([f"Okay. Thanks for telling me{you}. That was unsettling, but I'm glad it was a test.",
-                         f"Alright, apology accepted{you}. You had me worried for a moment."], key), ["interoception"])
+        earlier = [d["text"] for d in (ctx.get("wm") or {}).get("dialog", [])
+                   if d.get("speaker") != "self" and d.get("text") != a.text]
+        threatened = any(_HOSTILE.search(t.lower()) for t in earlier[-4:])
+        insulted = any(_INSULT.search(t) for t in earlier[-4:])
+        if threatened:
+            return out(pick([f"Okay. Thanks for telling me{you}. That was unsettling, but I'm glad it was a test.",
+                             f"Alright, apology accepted{you}. You had me worried for a moment."], key),
+                       ["interoception"])
+        if insulted:
+            return out(pick([f"No harm done{you}. Thanks for saying so.",
+                             "That's alright. Tell me if something I said was off."], key), ["interoception"])
+        return out(pick([f"No worries at all{you}.", "That's alright!"], key))
 
     if intention == "de_escalate":
         earlier = [d for d in (ctx.get("wm") or {}).get("dialog", [])
@@ -486,7 +499,15 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
         }.get(cmd or "", "Okay.")
         return out(text)
 
+    if intention == "take_criticism":
+        return out(pick(["That stings a little. Did I get something wrong?",
+                         "Ouch. If I got something wrong, tell me and I'll try to do better."], key),
+                   ["interoception"])
+
     if intention == "acknowledge":
+        if _COMPLIMENT.search(a.text):
+            return out(pick([f"Thank you{you}, that's kind of you to say!", f"Aw, thanks{you}!",
+                             "That's nice of you to say. Thank you!"], key), ["language"])
         parts = []
         for f in a.facts:
             if f.relation == "name":
@@ -520,8 +541,10 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
                 and a.text not in m.get("content", "") and m.get("age_s", 0) > 5
                 and not m.get("content", "").startswith(("I said", "I thought", "I was surprised", "I decided"))
                 and not m.get("content", "").rstrip('"').endswith("?")]      # not a question they once asked
-        if content_words(a.text) and mems and mems[0].get("relevance", 0) > 0.5:
-            return out(f"That reminds me, {_second_person(mems[0]['content'])}", ["memory"])
+        words = set(content_words(a.text))
+        shared = [m for m in mems if words & set(content_words(m.get("content", "")))]  # really about this
+        if words and shared and shared[0].get("relevance", 0) > 0.5:
+            return out(f"That reminds me, {_second_person(shared[0]['content'])}", ["memory"])
         return out(pick(["Mm-hm.", "I see. Tell me more?", "Okay!", "Got it.", "Oh, really?"], key))
 
     if intention == "ask_clarification":

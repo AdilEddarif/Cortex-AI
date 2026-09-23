@@ -206,6 +206,7 @@ class LanguageAnalysis(BaseModel):
     hostile: bool = False   # a threat or hostility aimed at the organism ("I will kill you")
     apology: bool = False   # an apology or retraction ("sorry, I was just testing you")
     affirm: str | None = None   # "yes" or "no": a bare answer, with nothing else in it
+    insult: bool = False    # an insult aimed at the organism ("you are useless")
 
 
 class UtterancePayload(BaseModel):

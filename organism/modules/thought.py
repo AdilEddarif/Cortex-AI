@@ -74,7 +74,8 @@ class Deliberation(BaseModel):
     thought: str
     respond: bool = True
     intention: Literal["answer", "acknowledge", "ask_clarification", "check_in", "greet", "farewell",
-                       "express_state", "comply", "stay_silent", "de_escalate", "reconcile"] = "answer"
+                       "express_state", "comply", "stay_silent", "de_escalate", "reconcile",
+                       "take_criticism"] = "answer"
     confidence: float = Field(0.7, ge=0, le=1)
 
 
@@ -87,6 +88,9 @@ def rule_deliberate(a: LanguageAnalysis, has_memories: bool) -> Deliberation:
     if a.hostile:
         return Deliberation(thought=f"{who} {'is' if named else 'are'} threatening me. That's alarming. I'll stay calm, "
                                     "say how it lands, and ask what's going on.", intention="de_escalate", confidence=0.85)
+    if a.insult and not a.hostile:
+        return Deliberation(thought=f"{who} {'is' if named else 'are'} insulting me. I'll take it without snapping "
+                                    "back, and ask what went wrong.", intention="take_criticism", confidence=0.8)
     if a.apology:
         return Deliberation(thought=f"{who} {'is' if named else 'are'} apologising. I can let it go and say how it felt.",
                             intention="reconcile", confidence=0.8)
@@ -248,6 +252,12 @@ def rule_thought(ttype: str, summary: str, payload: dict, step: int, extra: dict
         return ThoughtStep(thought=f"Thinking it over: {gist[:1].lower() + gist[1:]}. I don't see a clear cause yet, "
                                    "so I'll watch whether it happens again.", kind="reflection", confidence=0.5, done=True)
     if ttype == EventType.PREDICTION_ERROR:
+        if payload.get("target") == "speaker_tone":
+            warmer = "more positive" in summary or "warmer" in summary
+            return ThoughtStep(
+                thought=("Their tone is warmer than I expected. That's nice." if warmer else
+                         "Their tone is cooler than I expected. Something may be wrong; I should pay attention."),
+                kind="observation", confidence=0.6, done=True)
         return ThoughtStep(thought=f"Hm, {_lower_first(plain(summary))}. That's not what I expected; I should look into it.",
                            kind="prediction", confidence=0.6, action="investigate", action_reason="resolve a prediction error")
     if ttype == EventType.WORLD_CONFLICT:

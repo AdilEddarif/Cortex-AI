@@ -272,3 +272,24 @@ def test_threats_are_met_calmly_and_apologies_bring_relief(tmp_path):
         await org.stop()
 
     run(scenario())
+
+
+def test_compliments_insults_and_apologies_get_the_right_answer(tmp_path):
+    from organism.modules.language_rules import parse_utterance
+    assert parse_utterance("you are stupid").insult and not parse_utterance("you are beautiful today").insult
+    assert not parse_utterance("this film is stupid").insult          # not aimed at it
+    assert parse_utterance("i really like talking to you").facts == []  # warmth, not a preference to file
+
+    async def scenario():
+        org = await make_organism(tmp_path)
+        await org.tick(2)
+        assert "thank" in (await org.converse("you are beautiful today") or "").lower()
+        assert "thank" in (await org.converse("i really like talking to you") or "").lower()
+        hurt = await org.converse("you are stupid") or ""
+        assert ("stings" in hurt or "Ouch" in hurt) and "rough" not in hurt      # not "are you okay?"
+        sorry = await org.converse("sorry, I didn't mean it") or ""
+        assert "test" not in sorry and ("No harm done" in sorry or "alright" in sorry)
+        assert "That reminds me" not in hurt + sorry
+        await org.stop()
+
+    run(scenario())
