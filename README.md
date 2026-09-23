@@ -1,13 +1,15 @@
 # CortexAI
 
-**A brain-inspired cognitive architecture in which the language model is only its books.**
+> **An artificial mind, not a chatbot.** ~20 brain-inspired modules that remember, forget, sleep, feel, learn and reason — with a face, and a language model used only as its *books*.
 
-CortexAI is a persistent artificial individual built from ~20 cooperating modules (brainstem,
-thalamic bus, attention, global workspace, working and long-term memory, emotion, goals, thought,
-prediction, imagination, sleep, self-model, world model, metacognition, senses and a face). It
-thinks, decides, remembers, forgets, sleeps and speaks with its own modules; a local language model
-is consulted only for general knowledge, like something it once read. It makes **no claim of
-consciousness**: it implements measurable functional properties so they can be tested and ablated.
+CortexAI is a persistent artificial individual built from ~20 cooperating modules: a brainstem that
+sets its rhythm, a thalamic bus, attention and a global workspace, working and long-term memory that
+forgets like human memory does, emotion, goals, inner thought, prediction, imagination, sleep and
+dreams, a self-model, a world model, metacognition, comprehension, reasoning, senses and a face. It
+thinks, decides, remembers, forgets, sleeps, learns and speaks with its own modules. A local language
+model has exactly two jobs, and both return data rather than speech: recalling what it has read, and
+translating what you said into a structured request. It makes **no claim of consciousness**: it
+implements measurable functional properties so they can be tested and ablated.
 
 <p align="center"><img src="docs/demo.gif" alt="Scripted demo: memory, attention, prediction, a face, introspection, honesty, sleep and a restart" width="860"></p>
 
@@ -79,6 +81,7 @@ flowchart LR
     subgraph World
         P([person])
         ENV([scene and sounds])
+        WEB([Wikipedia · Wikidata · web])
     end
     subgraph Senses
         V[vision]
@@ -87,7 +90,8 @@ flowchart LR
     subgraph Cortex["CortexAI"]
         direction LR
         BS[brainstem<br/>rhythm, arousal, sleep]
-        ATT{attention<br/>competition}
+        COMP[comprehension<br/>what was meant]
+        ATT{attention<br/>competition · learns}
         WS[(global<br/>workspace)]
         subgraph Consumers["broadcast to every module"]
             MEM[memory<br/>+ temporal memory]
@@ -99,10 +103,11 @@ flowchart LR
             PR[prediction]
             MC[metacognition]
         end
-        ACT[action selection]
+        REA[reasoning<br/>chains of lookups]
+        ACT[action selection<br/>+ plans]
         IM[imagination]
         SAF[safety]
-        KN[(knowledge<br/>book knowledge = LLM)]
+        KN[(knowledge<br/>books = LLM · research agent)]
     end
     subgraph Body
         SP[speech]
@@ -111,21 +116,28 @@ flowchart LR
     P --> AU
     ENV --> V
     ENV --> AU
+    AU --> COMP
+    COMP --> ATT
     V --> ATT
-    AU --> ATT
     BS -. tick and gain .-> ATT
     ATT --> WS
     WS --> Consumers
     PR -- prediction errors --> ATT
     TH -- thoughts --> ATT
     MEM -- recollections --> ATT
+    Consumers -. what mattered .-> ATT
     Consumers --> ACT
+    Consumers --> REA
+    REA -. asks .-> MEM
+    REA -. asks .-> KN
+    REA --> SP
     IM <--> ACT
     ACT --> SAF
     SAF --> SP
     SAF --> FACE
     SP --> P
     FACE --> P
+    KN <-. only impersonal questions .-> WEB
     KN -. facts on request .-> TH
     KN -. facts on request .-> SP
 ```
@@ -166,7 +178,18 @@ webcam frames, push-to-talk recordings and image uploads, and speak replies with
 
 Ablate modules at runtime: `python -m organism serve --disable memory,self_model`.
 
+## The dashboard (`/`)
+
+<p align="center"><img src="docs/screenshots/dashboard.png" alt="The dashboard: workspace, attention, action selection, body and valuation" width="860"></p>
+
+The cognition behind each reply, live: the global workspace, attention with its (learned) component
+weights, action selection with the alternatives it weighed and what it imagined of them, predictions and
+their errors, the body, the valuation state, the self-model, memory and the inner monologue. Everything
+shown is read from the running cortex, never from a script.
+
 ## The face (`/face`)
+
+<p align="center"><img src="docs/screenshots/face.png" alt="The face: a particle mesh whose expression follows the internal state" width="860"></p>
 
 A living particle face (~600 dots in a plexus mesh) wired to the organism:
 
@@ -189,6 +212,8 @@ sleep** is also a real action: it closes its eyes, stays asleep for at least 90 
 replays memories and dreams.
 
 ## The brain map (`/brain`)
+
+<p align="center"><img src="docs/screenshots/brain-map.png" alt="The brain map: modules lighting up as events flow through the thalamic bus" width="860"></p>
 
 A live, anatomically-inspired map of the modules: regions light up as they emit and receive events,
 and pulses travel along the real subscription wiring through the thalamic bus. Workspace broadcasts

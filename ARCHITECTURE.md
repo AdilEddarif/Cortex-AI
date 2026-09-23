@@ -33,6 +33,7 @@ flowchart LR
     subgraph World
         P([person])
         ENV([scene and sounds])
+        WEB([Wikipedia · Wikidata · web])
     end
     subgraph Senses
         V[vision]
@@ -41,7 +42,8 @@ flowchart LR
     subgraph Cortex["CortexAI"]
         direction LR
         BS[brainstem<br/>rhythm, arousal, sleep]
-        ATT{attention<br/>competition}
+        COMP[comprehension<br/>what was meant]
+        ATT{attention<br/>competition · learns}
         WS[(global<br/>workspace)]
         subgraph Consumers["broadcast to every module"]
             MEM[memory<br/>+ temporal memory]
@@ -53,10 +55,11 @@ flowchart LR
             PR[prediction]
             MC[metacognition]
         end
-        ACT[action selection]
+        REA[reasoning<br/>chains of lookups]
+        ACT[action selection<br/>+ plans]
         IM[imagination]
         SAF[safety]
-        KN[(knowledge<br/>book knowledge = LLM)]
+        KN[(knowledge<br/>books = LLM · research agent)]
     end
     subgraph Body
         SP[speech]
@@ -65,21 +68,28 @@ flowchart LR
     P --> AU
     ENV --> V
     ENV --> AU
+    AU --> COMP
+    COMP --> ATT
     V --> ATT
-    AU --> ATT
     BS -. tick and gain .-> ATT
     ATT --> WS
     WS --> Consumers
     PR -- prediction errors --> ATT
     TH -- thoughts --> ATT
     MEM -- recollections --> ATT
+    Consumers -. what mattered .-> ATT
     Consumers --> ACT
+    Consumers --> REA
+    REA -. asks .-> MEM
+    REA -. asks .-> KN
+    REA --> SP
     IM <--> ACT
     ACT --> SAF
     SAF --> SP
     SAF --> FACE
     SP --> P
     FACE --> P
+    KN <-. only impersonal questions .-> WEB
     KN -. facts on request .-> TH
     KN -. facts on request .-> SP
 ```
