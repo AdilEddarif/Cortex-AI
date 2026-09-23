@@ -27,6 +27,9 @@ def _settings(args):
         s.llm.provider = args.llm
     if getattr(args, "disable", None):
         s.modules.disabled = [m.strip() for m in args.disable.split(",") if m.strip()]
+    for perm in (getattr(args, "allow", None) or "").split(","):  # operator grants at start-up
+        if perm.strip():
+            s.safety.permissions[perm.strip()] = True
     return s
 
 
@@ -46,7 +49,8 @@ def cmd_chat(args) -> None:
         s = _settings(args)
         org = await Organism(s).start()
         print(f"[{s.identity.name} | language: {org.ctx.llm.name} | memory: {org.ctx.embedder.name}]")
-        print("Type to talk. Commands: /sleep /wake /state /quit. Inner thoughts are shown in grey.\n")
+        print("Type to talk. Commands: /sleep /wake /state /allow <permission> /deny <permission> /quit. "
+              "Inner thoughts are shown in grey.\n")
 
         def show(e) -> None:
             if e.type == EventType.SPEECH_GENERATED:
@@ -67,6 +71,11 @@ def cmd_chat(args) -> None:
                     break
                 if line in ("/sleep", "/wake"):
                     org.command(line[1:])
+                elif line.startswith(("/allow ", "/deny ")):  # the operator's channel, not speech to the cortex
+                    verb, _, perm = line.partition(" ")
+                    org.command("grant" if verb == "/allow" else "revoke", permission=perm.strip())
+                    await org.settle()
+                    print(f"  [permissions: {org.settings.safety.permissions}]")
                 elif line == "/state":
                     snap = org.snapshot()["modules"]
                     print(json.dumps({"body": snap.get("brainstem"), "emotion": snap.get("emotion", {}).get("state"),
@@ -160,10 +169,12 @@ def main(argv: list[str] | None = None) -> None:
     sp.add_argument("--port", type=int)
     sp.add_argument("--llm", choices=["auto", "ollama", "anthropic", "rule"])
     sp.add_argument("--disable", help="comma-separated modules to ablate")
+    sp.add_argument("--allow", help="grant permissions at start-up, e.g. internet_read")
     sp.set_defaults(fn=cmd_serve)
     sc = sub.add_parser("chat", help="terminal conversation")
     sc.add_argument("--llm", choices=["auto", "ollama", "anthropic", "rule"])
     sc.add_argument("--disable")
+    sc.add_argument("--allow", help="grant permissions at start-up, e.g. internet_read")
     sc.add_argument("--thoughts", action="store_true", help="print inner thoughts")
     sc.set_defaults(fn=cmd_chat)
     se = sub.add_parser("experiment", help="run ablation experiments")

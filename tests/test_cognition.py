@@ -142,3 +142,23 @@ def test_mind_wandering_wonders_about_things_not_words():
     assert recollection("The user's name is Radouane.") == "I'm remembering: your name is Radouane."
     r = recollection("user's tone became warmer. Then something else happened later on.")
     assert "you's" not in r and "your tone" in r and "later on" not in r
+
+
+def test_bare_yes_is_an_answer_not_a_cue_for_a_random_memory():
+    for word in ("yes", "Yeah!", "sure", "ok"):
+        assert parse_utterance(word).affirm == "yes"
+    for word in ("no", "nope", "never mind"):
+        assert parse_utterance(word).affirm == "no"
+    assert parse_utterance("yes I do like chess").affirm is None      # it carries content, so it is a statement
+    a = parse_utterance("yes")
+    ctx = {"memories": [{"content": 'user said to me: "who won the champions league title 2026 ?"',
+                         "relevance": 0.9, "age_s": 60, "kind": "episodic"}],
+           "wm": {"dialog": [{"speaker": "user", "text": "hello"}]}}
+    reply = compose_reply("acknowledge", a, ctx)["text"]
+    assert "reminds me" not in reply and "champions league" not in reply and reply
+    # after one of its own questions, a "yes" is read as an answer to it
+    ctx["wm"]["dialog"].append({"speaker": "self", "text": "Do you want me to remember that?"})
+    assert compose_reply("acknowledge", a, ctx)["text"] in ("Okay, good.", "Alright then.", "Good.")
+    # a question they once asked is never offered back as a recollection
+    said = compose_reply("acknowledge", parse_utterance("the weather is nice"), ctx)["text"]
+    assert "champions league" not in said

@@ -10,9 +10,11 @@
 
 1. **The language model is not the brain.** It plays the role of *book knowledge*: everything a
    well-read person has read. Only the `knowledge` module consults it, for impersonal
-   general-knowledge questions, and it returns data (known / answer / confidence). Thought,
-   deliberation, speech, the self-narrative, dreams and memory consolidation belong to the
-   cortex's own modules.
+   general-knowledge questions, and it returns data (known / answer / confidence). When the books
+   don't know, or the question is about current events, the same module can delegate to a
+   **research agent** that looks it up online (Wikidata for who holds an office, Wikipedia, and
+   Tavily web search with a key) and answers only from what it fetched, with sources. Thought, deliberation, speech, the self-narrative,
+   dreams and memory consolidation belong to the cortex's own modules.
 2. **No all-to-all coupling.** Modules talk only through a single thalamic bus:
    publish/subscribe for events, request/response for queries, nomination for attention.
    No module imports another.
@@ -99,7 +101,7 @@ Urgent stimuli trigger an immediate "phasic" tick.
 | `goals` | vmPFC / motivational systems | deterministic | persistent intrinsic goals + situational goals (respond, explore surprises); dynamic priorities (rest ∝ fatigue) |
 | `thought` | Inner speech / dlPFC | symbolic | bounded thought chains, loop detection, interruption, rate limits, mind-wandering when idle (which may bring back something it has read); think-before-speaking deliberation |
 | `language` | Wernicke / Broca | parser + composer | structured understanding (intents, facts, commands, multi-step requests); replies composed from the cortex's actual state in its own words; general-knowledge answers woven in ("From what I've read, ..."); verbal reports logged beside their state snapshots |
-| `knowledge` | Semantic cortex fed by reading | language model | answers impersonal questions as data; refuses anything about itself, the speaker or the present moment before the model is consulted; discards answers where a persona leaks in; remembers what it read as semantic memory |
+| `knowledge` | Semantic cortex fed by reading | language model + research agent | answers impersonal questions as data; refuses anything about itself, the speaker, the moment or its location before any model or network call; discards answers where a persona leaks in; for unknown or time-sensitive questions (and only with the `internet_read` permission) delegates to a bounded research agent that asks Wikidata for office holders (current or in a given year, with dates) and searches Wikipedia and Tavily, answers only from fetched notes with citations, and falls back to a fixed pipeline; remembers what it read or looked up as semantic memory with source and date |
 | `speech` | Motor speech | effector | executes approved speech; safety text filter; optional synthesised voice; efference copy |
 | `expression` | Facial motor system | effector | timed facial expressions (smile, laugh, wink, closed eyes, looking left/right/up/down, ...) on top of the emotion-driven baseline; facial feedback into valuation |
 | `action` | Basal ganglia | algorithm | candidate generation, utility (base + goals + emotion + habits − energy cost), imagination-backed evaluation, one action per channel (vocal / other), deliberate silence, habit learning, committed multi-step plans ("close your eyes, count to 10, then open them": steps run in order, each through safety, each waiting to be seen or heard) |
@@ -237,7 +239,9 @@ ago I was talking with Ada").
 ## 9. Safety
 
 `cognition → ACTION_SELECTED → safety → ACTION_APPROVED/REJECTED → effectors`. Actions that reach
-outside the cortex need explicit permission grants. Credentials are never placed in prompts, and
+outside the cortex need explicit permission grants; looking things up online needs `internet_read`
+(on in the shipped config, off in the code defaults used by tests), sends only impersonal questions, and
+is rate-limited and cached. Speech can give a permission up but never grant one. Credentials are never placed in prompts, and
 prompts, logs and memories pass through secret redaction (optional PII redaction). The camera
 and microphone are off by default, and raw frames are not stored.
 

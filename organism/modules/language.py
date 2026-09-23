@@ -79,6 +79,8 @@ class Language(CognitiveModule):
         }
         if a.asks_about == "dream":
             topics["dreams"] = ("memory.recent", {"kinds": ["dream"], "n": 3})
+        if a.command == "internet" or a.asks_about == "internet":
+            topics["permissions"] = ("safety.permissions", {})
         if a.asks_about == "change":
             topics["surprises"] = ("prediction.recent_errors", {"max_age_s": 300})
         if a.asks_about == "past":
@@ -115,6 +117,7 @@ class Language(CognitiveModule):
         intention = q.get("intention", "answer")
         ctx = await self.gather(a)
         ctx["last_thought"] = q.get("thought")
+        ctx["doing"] = q.get("doing")  # what the body is doing in the same decision (e.g. "revoke")
         draft = compose_reply(intention, a, ctx)
         if intention == "stay_silent":
             return {**draft, "text": ""}

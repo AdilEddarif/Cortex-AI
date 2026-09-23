@@ -39,6 +39,10 @@ EXPRESSION_WORDS: list[tuple[str, re.Pattern]] = [
 ]
 
 COMMANDS: list[tuple[str, re.Pattern]] = [
+    ("internet", re.compile(r"\b((turn|switch|put) (on|off) (the |your )?(internet|web|online)( acc?ess)?|"
+                            r"(turn|switch) (the |your )?(internet|web)( acc?ess)? (on|off)|"
+                            r"(enable|disable|allow|block|activate|deactivate) (the |your )?(internet|web)( acc?ess)?|"
+                            r"(go|get) (online|offline))\b")),
     ("sleep", re.compile(r"\b(go to sleep|sleep now|take a nap|get some rest|go sleep|time to sleep)\b")),
     ("wake", re.compile(r"\bwake up\b")),
     ("remember", re.compile(r"^(please\s+)?(remember|memori[sz]e)\s+(that\s+)?(?P<x>.+)")),
@@ -56,6 +60,8 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
     ("perception_both", re.compile(r"\bsee and hear\b|\bhear and see\b")),
     ("perception_vision", re.compile(r"(what (do|can) you see|in front of you|around you|can you see|do you see|looking at|what('?s| is) there)")),
     ("perception_audio", re.compile(r"(what (do|can|did) you (just )?hear|did you (just )?hear|do you hear|what was that (sound|noise))")),
+    ("preference", re.compile(r"((do|does) you (like|love|enjoy|prefer|hate|dislike)\b|what('?s| is) your favou?rite|"
+                              r"what do you (like|enjoy|prefer))")),
     ("consciousness", re.compile(r"(are you (conscious|alive|sentient|real|a person|human)|do you (really )?(feel (anything|things|emotions)|have feelings|have emotions)|can you (really )?feel\b)")),
     ("boot", re.compile(r"(how many times|booted|restarted|started up|been (turned|switched) on)")),
     ("thinking", re.compile(r"(what are you thinking|on your mind|what are you doing|what('?s| is) happening in your mind)")),
@@ -70,6 +76,8 @@ ASKS_ABOUT: list[tuple[str, re.Pattern]] = [
     ("past", re.compile(r"(what (were|did) we (talk|discuss|say|do)|earlier|last time|what did i (say|tell)|what happened|what were you doing|"
                         r"what did you do|remember when|previously|before i|yesterday|last night|this (morning|afternoon|evening)|"
                         r"\bago\b|before (you|u) (fell asleep|slept|went to sleep)|(after|when) (you|u) woke|first (time )?we (met|talked))")),
+    ("internet", re.compile(r"(are you (online|connected)|(do|can) you (have )?(access|use|search|go on) (to )?the "
+                            r"(internet|web)|is your internet|internet acc?ess (on|off|enabled))")),
     ("change", re.compile(r"((did|has) anything (change|changed|happen)|what('?s| has)? changed|anything (different|unusual)|"
                           r"notice anything|(did )?anything surprise you|what surprised you)")),
     ("focus", re.compile(r"(focusing on|paying attention to|your focus|attending to)")),
@@ -83,6 +91,8 @@ POSITIVE = {"good", "great", "love", "like", "nice", "thanks", "thank", "awesome
 NEGATIVE = {"bad", "hate", "terrible", "awful", "sad", "angry", "upset", "annoyed", "stupid", "wrong", "horrible",
             "worried", "afraid", "scared", "hurt", "dislike", "boring", "useless", "sorry", "problem", "kill",
             "murder", "destroy", "die", "dead", "idiot", "shut"}
+_YES = re.compile(r"^(yes|yeah|yep|yup|sure|ok|okay|of course|certainly|absolutely|right|correct|indeed|please do|go ahead|why not)[.! ]*$", re.I)
+_NO = re.compile(r"^(no|nope|nah|not really|no thanks|no thank you|never mind|nevermind)[.! ]*$", re.I)
 _APOLOGY = re.compile(r"\b(sorry|i apologi[sz]e|(just|only) (kidding|joking|testing)|i was (joking|kidding|testing)|"
                       r"didn't mean (it|that)|did not mean (it|that)|no hard feelings)\b")
 # Hostility aimed at the organism itself: a threat to harm, destroy or delete it, or hatred.
@@ -205,6 +215,8 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
             command = name
             arg = _clean(t[m.start("x"):m.end("x")]) if "x" in pat.groupindex and m.group("x") else None
             break
+    if command == "internet":
+        arg = "off" if re.search(r"\b(off|disable|block|deactivate|offline)\b", low) else "on"
     if command == "remember" and is_question:
         command, arg = None, None  # "do you remember ...?" is a question about the past
     asks = None
@@ -219,6 +231,7 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
     sentiment = 0.0 if pos + neg == 0 else (pos - neg) / (pos + neg)
     if "not" in words or "n't" in low:
         sentiment *= -0.5
+    affirm = "yes" if _YES.match(t.strip()) else "no" if _NO.match(t.strip()) else None
     hostile = bool(_HOSTILE.search(low))
     apology = bool(_APOLOGY.search(low)) and not hostile
     if hostile:
@@ -250,7 +263,7 @@ def parse_utterance(text: str, speaker: str = "user", self_name: str = "", chann
         asks_about=asks, topic=" ".join(content_words(t)[:4]), entities=entities[:6],
         facts=extract_facts(t, speaker) if intent in ("statement", "greeting", "command") else [],
         sentiment=round(sentiment, 3), command=command, command_arg=arg, steps=steps, hostile=hostile,
-        apology=apology,
+        apology=apology, affirm=affirm,
     )
 
 
@@ -386,7 +399,8 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
     user_name = ctx.get("user_name")
     report = {"topic": None, "snap": None}
     you = f", {user_name}" if user_name else ""
-    key = a.text or intention
+    turns = len((ctx.get("wm") or {}).get("dialog", []))
+    key = f"{a.text or intention}#{turns}"  # the same words twice in a row get a different answer
 
     def out(text: str, grounding: list[str] | None = None, knowledge_gap: bool = False) -> dict:
         return {"text": text, "grounding": grounding or (["none"] if knowledge_gap else []),
@@ -446,6 +460,17 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
             return out(pick(["Okay, here goes.", "Sure, here we go."], key), ["self_model"])
         if cmd == "count":
             return out(count_text(arg))
+        if cmd == "internet":
+            on = bool((ctx.get("permissions") or {}).get("internet_read"))
+            if arg == "off":
+                just_did = ctx.get("doing") == "revoke"  # the same decision already gave the permission up
+                return out("Okay, I've switched my internet access off. I'll stick to my books." if on or just_did
+                           else "It's already off. I'm only using my books.", ["self_model"])
+            if on:
+                return out("It's already on: I can look things up when my books don't know.", ["self_model"])
+            return out("I can't switch that on myself: my safety layer doesn't let me grant my own permissions. "
+                       "You can: type /allow internet_read in the chat, start me with --allow internet_read, "
+                       "or set internet_read = true in config/organism.toml.", ["self_model"])
         if cmd == "move":
             return out(pick(["I'd love to, but I'm just a face. No legs, so I can't move around. I can look around, though!",
                              "I can't move around, I'm only a face. But I can look left, right, up or down."], key),
@@ -482,9 +507,20 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
                 parts.append(f"Interesting, I'll remember that {subj} {f.relation.replace('_', ' ')} {f.object}.")
         if parts:
             return out(" ".join(parts), ["language"])
+        if a.affirm:  # a bare "yes"/"no" answers something; it is not news to remember
+            dialog = (ctx.get("wm") or {}).get("dialog", [])
+            asked = next((d for d in reversed(dialog) if d.get("speaker") == "self"), {}).get("text", "").endswith("?")
+            if a.affirm == "yes":
+                return out(pick(["Okay, good.", "Alright then.", "Good."], key) if asked
+                           else pick(["Okay!", "Mm-hm.", "Got it."], key))
+            return out(pick(["Okay, no problem.", "Alright, never mind then."], key) if asked
+                       else pick(["Okay.", "Fair enough."], key))
+        # A memory is only worth bringing up if this turn has some content and the memory really fits it.
         mems = [m for m in ctx.get("memories", []) if m.get("kind") not in ("dream", "imagined")
-                and a.text not in m.get("content", "") and m.get("age_s", 0) > 5]
-        if mems and mems[0].get("relevance", 0) > 0.35:
+                and a.text not in m.get("content", "") and m.get("age_s", 0) > 5
+                and not m.get("content", "").startswith(("I said", "I thought", "I was surprised", "I decided"))
+                and not m.get("content", "").rstrip('"').endswith("?")]      # not a question they once asked
+        if content_words(a.text) and mems and mems[0].get("relevance", 0) > 0.5:
             return out(f"That reminds me, {_second_person(mems[0]['content'])}", ["memory"])
         return out(pick(["Mm-hm.", "I see. Tell me more?", "Okay!", "Got it.", "Oh, really?"], key))
 
@@ -513,6 +549,11 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
         extra = f" This is my {_ordinal(n)} time being switched on." if n and n > 1 else ""
         return out(f"I'm {my_name}, an experimental artificial mind. I can see you through the camera, listen, "
                    f"remember things, and I even sleep and dream.{extra}", ["self_model"])
+    if topic == "preference":
+        em = (ctx.get("emotion") or {}).get("state") or {}
+        cur = f" Right now my curiosity is at {em['curiosity']:.2f}." if "curiosity" in em else ""
+        return out("I don't have tastes the way you do. What I have are signals like curiosity, comfort and "
+                   f"boredom, and they do shape what I attend to.{cur}", ["self_model", "interoception"])
     if topic == "consciousness":
         return out("Honestly? Nobody knows yet, including me. I have internal states that really do shape what I do, "
                    "like curiosity right now, but whether it feels like anything to be me is an open question.",
@@ -655,6 +696,13 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
             thought = own[0]["content"]
             return out(f"I was thinking: {speakable(thought)}", ["self_model"])
         return out("Hmm, I'm honestly not sure why.", knowledge_gap=True)
+    if topic == "internet":
+        perms = ctx.get("permissions")
+        if perms is None:
+            return out("I'm not sure what I'm allowed to do right now.", knowledge_gap=True)
+        if perms.get("internet_read"):
+            return out("Yes, I can look things up online when my books don't know.", ["self_model"])
+        return out("No, my internet access is switched off, so I only have my books.", ["self_model"])
     if topic == "change":
         errs = ctx.get("surprises")
         if errs is None:
@@ -721,14 +769,24 @@ def compose_reply(intention: str, a: LanguageAnalysis, ctx: dict) -> dict:
         c = facts[0]["content"]
         return out(f"From what I've learned, {_second_person(c[0].lower() + c[1:])}", ["memory"])
     book = ctx.get("knowledge") or {}
+    if book.get("known") and book.get("answer") and book.get("kind") == "web":  # looked up just now
+        names = list(dict.fromkeys(s.get("source") or "the web" for s in book.get("sources") or []))[:2]
+        where = f" ({' and '.join(names)})" if names else ""
+        return out(f"I looked it up{where}: {book['answer'].strip()}", ["knowledge", "web"])
     if book.get("known") and book.get("answer"):  # something read, recalled like a book
         said = _from_reading(book["answer"])
+        if book.get("maybe_stale"):
+            return out(f"From what I've read, {said}, but that might be out of date.", ["knowledge"])
         if float(book.get("confidence", 0)) < 0.5:
             return out(f"I think I read that {said}, but I'm not sure.", ["knowledge"])
         return out(f"From what I've read, {said}.", ["knowledge"])
     mems = [m for m in mems if not specific or all(w in m.get("content", "").lower() for w in specific)]
     if mems and mems[0].get("relevance", 1) > 0.3:
         return out(f"I remember {_second_person(truncate(mems[0]['content'], 160))}", ["memory"])
+    if book.get("reason") == "internet_off":
+        return out(pick(["I don't know, and I can't look it up: my internet access is switched off.",
+                         "My books don't cover that, and I'm not allowed online right now to check."], key),
+                   knowledge_gap=True)
     return out(pick(["Hmm, I don't know that one.", "I'm not sure. Nobody's told me that yet.",
                      "Good question. I don't know."], key), knowledge_gap=True)
 

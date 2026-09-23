@@ -34,7 +34,7 @@ ENERGY_COST = {
     ActionType.SPEAK: 0.08, ActionType.ASK: 0.08, ActionType.WAIT: 0.0, ActionType.LOOK: 0.05,
     ActionType.REMEMBER: 0.03, ActionType.INVESTIGATE: 0.1, ActionType.SIMULATE: 0.12, ActionType.SLEEP: 0.0,
     ActionType.WAKE: 0.0, ActionType.SET_GOAL: 0.02, ActionType.NOTE: 0.05, ActionType.MOVE: 0.2,
-    ActionType.EXPRESS: 0.01,
+    ActionType.EXPRESS: 0.01, ActionType.REVOKE: 0.0,
 }
 EXPECTED = {
     ActionType.SPEAK: "the listener receives my reply and the conversation continues",
@@ -49,6 +49,7 @@ EXPECTED = {
     ActionType.NOTE: "a note is written to my notebook",
     ActionType.MOVE: "my body moves",
     ActionType.EXPRESS: "my face shows the expression",
+    ActionType.REVOKE: "I no longer have that permission",
 }
 COMMAND_ACTIONS = {
     "sleep": ActionType.SLEEP, "wake": ActionType.WAKE, "look": ActionType.LOOK, "remember": ActionType.REMEMBER,
@@ -217,6 +218,11 @@ class Action(CognitiveModule):
                                      for st in a.steps) if s]
                 self.plan = {"steps": deque(specs), "waiting": None, "next_at": self.now() + 0.5,
                              "about": item.event_id, "request": a.text}
+            elif a.intent == "command" and a.command == "internet":
+                spec = self._command_spec("internet", a.command_arg, a, item.event_id)
+                perms = await self.ask_one("safety.permissions", {}, default={}) or {}
+                if spec and perms.get("internet_read"):  # nothing to give up if it is already off
+                    cands.append(Candidate(spec=spec, base=0.8, notes=["requested"]))
             elif a.intent == "command" and a.command in COMMAND_ACTIONS:
                 spec = self._command_spec(a.command, a.command_arg, a, item.event_id)
                 cands.append(Candidate(spec=spec, base=0.8, notes=["requested"]))
@@ -230,6 +236,12 @@ class Action(CognitiveModule):
 
     @staticmethod
     def _command_spec(command: str, arg: str | None, a, about: str, in_plan: bool = False) -> ActionSpec | None:
+        if command == "internet":
+            if arg != "off":
+                return None  # it cannot grant itself access: the reply explains who can
+            return ActionSpec(action=ActionType.REVOKE, about_event=about, params={"permission": "internet_read"},
+                              reason=f"{a.speaker} asked me to go offline", confidence=0.9,
+                              expected_outcome=EXPECTED[ActionType.REVOKE])
         if command == "count":
             return ActionSpec(action=ActionType.SPEAK, about_event=about,
                               params={"intention": "recite", "text": count_text(arg), "addressed_to": a.speaker},

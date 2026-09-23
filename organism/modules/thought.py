@@ -47,7 +47,7 @@ ABOUT_PHRASE = {
     "perception_vision": "what I see", "perception_audio": "what I hear", "perception_both": "what I see and hear",
     "feeling": "about my internal state", "arousal": "how alert I am", "past": "about what happened earlier",
     "thinking": "what is on my mind", "goal": "about my goals", "capability": "what I can do",
-    "confidence": "how sure I am", "body": "about my body", "reason": "why I did something", "dream": "about my dream-like simulations", "boot": "about my history",
+    "confidence": "how sure I am", "body": "about my body", "internet": "whether I can go online", "reason": "why I did something", "dream": "about my dream-like simulations", "boot": "about my history",
     "time": "about time", "focus": "what I am attending to",
 }
 SOURCE = {
@@ -56,7 +56,7 @@ SOURCE = {
     "arousal": "interoception", "past": "episodic memory", "dream": "memory of dream-like simulations",
     "boot": "my self-model", "confidence": "metacognition", "focus": "metacognition", "thinking": "my own recent thoughts",
     "goal": "my goals", "capability": "my self-model", "time": "my clock", "body": "my self-model",
-    "reason": "what just happened", "general": "what I remember or have read",
+    "reason": "what just happened", "general": "what I remember or have read", "internet": "my safety settings",
 }
 
 
@@ -99,6 +99,12 @@ def rule_deliberate(a: LanguageAnalysis, has_memories: bool) -> Deliberation:
             return Deliberation(thought="I'm asked to move, but my body is only a face. I should explain that.",
                                 intention="comply", confidence=0.85)
         what = (a.command_arg or "smile").replace("_", " ") if a.command == "express" else a.command
+        if a.command == "internet":
+            if a.command_arg == "off":
+                what = "switch my internet access off; I can always give a permission up"
+            else:
+                return Deliberation(thought=f"{who} {'wants' if named else 'want'} me online, but I can't grant myself "
+                                            "permissions. I'll explain how they can.", intention="comply", confidence=0.85)
         if a.command == "sequence" and a.steps:
             parts = [re.sub(r"\byour\b", "my", s["text"]) for s in a.steps]
             what = ", ".join(parts[:-1]) + ", then " + parts[-1]
@@ -112,6 +118,9 @@ def rule_deliberate(a: LanguageAnalysis, has_memories: bool) -> Deliberation:
     if a.sentiment <= -0.5:
         return Deliberation(thought=f"{'Their' if not named else who + chr(39) + 's'} tone is negative (sentiment {a.sentiment:.2f}). They may be upset; I should check in.",
                             intention="check_in", confidence=0.7)
+    if a.affirm and not a.facts:
+        return Deliberation(thought=f"{who} said {a.affirm}. I'll acknowledge it without making more of it.",
+                            intention="acknowledge", confidence=0.8)
     if a.facts:
         return Deliberation(thought=f"{'They' if not named else who} told me something about {a.facts[0].subject}. I should remember and acknowledge it.",
                             intention="acknowledge", confidence=0.85)
@@ -245,7 +254,8 @@ def rule_thought(ttype: str, summary: str, payload: dict, step: int, extra: dict
         return ThoughtStep(thought=f"My beliefs conflict with what I now observe ({s}). Recent perception is usually more reliable, but I should remain uncertain.",
                            kind="inference", confidence=0.55)
     if ttype == EventType.METACOGNITIVE_REPORT:
-        return ThoughtStep(thought=f"I notice something about my own cognition: {s}", kind="reflection", confidence=0.6)
+        return ThoughtStep(thought=f"I notice something about my own cognition: {_lower_first(plain(summary))}.",
+                           kind="reflection", confidence=0.6)
     if ttype == EventType.GOAL_CREATED:
         g = payload.get("goal", {})
         first = (g.get("required_actions") or ["think"])[0]

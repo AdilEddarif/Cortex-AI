@@ -98,6 +98,7 @@ class ActionType(StrEnum):
     NOTE = "note"            # sandboxed digital action (permission-controlled)
     MOVE = "move"            # no body yet: always rejected as unavailable
     EXPRESS = "express"      # facial expression (the face is the organism's visible body)
+    REVOKE = "revoke"        # give up one of its own permissions (it can never grant itself one)
 
 
 VOCAL_ACTIONS = frozenset({ActionType.SPEAK, ActionType.ASK})
@@ -204,6 +205,7 @@ class LanguageAnalysis(BaseModel):
     steps: list[dict] = Field(default_factory=list)
     hostile: bool = False   # a threat or hostility aimed at the organism ("I will kill you")
     apology: bool = False   # an apology or retraction ("sorry, I was just testing you")
+    affirm: str | None = None   # "yes" or "no": a bare answer, with nothing else in it
 
 
 class UtterancePayload(BaseModel):

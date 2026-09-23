@@ -16,6 +16,10 @@ consciousness**: it implements measurable functional properties so they can be t
 - **The LLM is not the brain.** Thought, deliberation, speech, the self-narrative, dreams and memory
   consolidation are the cortex's own. The language model answers impersonal questions as data
   ("From what I've read, ..."), and is never asked anything about the cortex, the speaker or the moment.
+- **It looks things up by itself.** When its books don't know, or a question is about current events, a
+  research agent checks Wikidata (who holds an office, with dates), Wikipedia and optionally the web
+  (Tavily), and answers only from what it fetched: "I looked it up (Wikipedia): ...". Only impersonal
+  questions ever leave the machine.
 - **A persistent individual.** It survives restarts with its identity, memories, goals and a sense of
   how long it was off. Memory behaves in time like human memory: a forgetting curve, the spacing
   effect, fading to gist during sleep, episodes, and recall by time ("yesterday evening").
@@ -137,6 +141,14 @@ cortex runs fully symbolic and reproducible (`--llm rule`). Memory uses `nomic-e
 embeddings, falling back to hashing. Everything is configurable in `config/organism.toml` or via
 `ORGANISM_<SECTION>__<KEY>` environment variables.
 
+Looking things up online is on in the shipped `config/organism.toml` (`internet_read = true`) and
+needs no key for Wikipedia and Wikidata. To keep CortexAI offline, set it to `false` (or use
+`/deny internet_read` in `chat`). CortexAI can give the
+permission up when asked, but never grant it to itself. Tests and benchmarks never touch the network;
+`CORTEX_LIVE=1 python -m pytest tests/test_live_2026.py` checks real 2026 facts online. For current web
+search, add a [Tavily](https://tavily.com) key to a local `.env` file as `TAVILY_API_KEY=...`; it is
+read at start-up and never enters a prompt or log.
+
 Optional senses: `ORGANISM_VISION__ENABLED=true` (server camera, YOLO), `ORGANISM_AUDIO__MICROPHONE=true`
 (needs `pip install sounddevice`), `ORGANISM_SPEECH__TTS=kokoro`. The dashboard can also send
 webcam frames, push-to-talk recordings and image uploads, and speak replies with the browser voice.
@@ -195,6 +207,11 @@ tests/          unit + integration tests (architectural guarantees, benchmark, d
 Language-model calls take a few seconds on a consumer GPU and are only needed for
 general-knowledge questions. If a call is slow or fails, it times out and falls back to the
 symbolic layer, so cognition never stops. Symbolic mode replies instantly.
+
+## Contributing
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for the design invariants,
+how to test a change and how to report odd behaviour.
 
 ## License
 

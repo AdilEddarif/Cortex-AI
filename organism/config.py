@@ -170,13 +170,25 @@ class SpeechCfg(BaseModel):
     max_per_minute: int = 12
 
 
+class KnowledgeCfg(BaseModel):
+    # Looking facts up on the web (Wikipedia; Tavily web search when TAVILY_API_KEY is set).
+    # Also requires the safety permission "internet_read", which is off by default.
+    web: bool = True
+    agent: bool = True                # a tool-using research loop on the local model (else a fixed pipeline)
+    max_agent_steps: int = 4
+    max_web_calls_per_hour: int = 30
+    wikipedia_lang: str = "en"
+    timeout_s: float = 10.0
+    cache_ttl_s: float = 86400.0
+
+
 class SafetyCfg(BaseModel):
     allowed_actions: list[str] = Field(default_factory=lambda: [
         "speak", "ask", "wait", "look", "remember", "investigate", "simulate",
-        "sleep", "wake", "set_goal", "note", "move", "express",
+        "sleep", "wake", "set_goal", "note", "move", "express", "revoke",
     ])
     # Actions that touch the world outside the organism need an explicit grant.
-    permissions: dict[str, bool] = Field(default_factory=lambda: {"digital_write": False})
+    permissions: dict[str, bool] = Field(default_factory=lambda: {"digital_write": False, "internet_read": False})
     action_permissions: dict[str, str] = Field(default_factory=lambda: {"note": "digital_write"})
     max_utterance_chars: int = 1200
 
@@ -224,6 +236,7 @@ class Settings(BaseSettings):
     vision: VisionCfg = Field(default_factory=VisionCfg)
     audio: AudioCfg = Field(default_factory=AudioCfg)
     speech: SpeechCfg = Field(default_factory=SpeechCfg)
+    knowledge: KnowledgeCfg = Field(default_factory=KnowledgeCfg)
     safety: SafetyCfg = Field(default_factory=SafetyCfg)
     modules: ModulesCfg = Field(default_factory=ModulesCfg)
     world: WorldCfg = Field(default_factory=WorldCfg)
@@ -245,7 +258,29 @@ class Settings(BaseSettings):
         return module in ESSENTIAL_MODULES or module not in self.modules.disabled
 
 
+def load_dotenv(path: str | Path = ".env") -> int:
+    """Read KEY=VALUE lines from a local .env into the environment (existing variables win)."""
+    p = Path(path)
+    if not p.is_file():
+        return 0
+    n = 0
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip().removeprefix("export ").strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        if key and key not in os.environ:
+            os.environ[key] = value
+            n += 1
+    return n
+
+
 def load_settings(config_path: str | Path | None = None, **overrides) -> Settings:
+    if config_path is None:  # real runs read a local .env; tests and benchmarks (explicit config) never do
+        load_dotenv()
     path = Path(config_path or os.environ.get("ORGANISM_CONFIG", "config/organism.toml"))
 
     class _FileSettings(Settings):

@@ -36,9 +36,17 @@ asr_model = "small"
 [speech]
 tts = "none"                   # none | kokoro (the dashboard can also speak with the browser voice)
 
+[knowledge]
+# Looking facts up online: Wikipedia, plus Tavily web search if TAVILY_API_KEY is set in .env.
+# It searches by itself when its books don't know or a question is about current events.
+# Only impersonal questions ever leave the machine. Needs the internet_read permission below.
+web = true
+agent = true                   # tool-using research loop on the local model
+
 [safety]
-# Actions that reach outside the organism need explicit grants.
-permissions = { digital_write = false }
+# Actions that reach outside the organism need explicit grants. internet_read lets it look facts up
+# online (set it to false to keep it offline; it can also give it up when asked, but never re-grant it).
+permissions = { digital_write = false, internet_read = true }
 
 [modules]
 disabled = []                  # e.g. ["memory"] to ablate long-term memory

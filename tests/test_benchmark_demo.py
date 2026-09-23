@@ -41,6 +41,6 @@ def test_demo_tells_the_story():
     said = "\n".join(t for k, t in tour.lines if k == "ai")
     inner = "\n".join(t for k, t in tour.lines if k == "inner")
     assert "the cup is gone" in said and "One, two, three, four, five." in said
-    assert "You're Ada" in said and "2nd time" in said and "telescope" in said
+    assert ("You're Ada" in said or "Your name is Ada" in said) and "2nd time" in said and "telescope" in said
     assert "workspace broadcasts: I heard a glass shattering" in inner
     assert sum(k == "scene" for k, _ in tour.lines) == 10
